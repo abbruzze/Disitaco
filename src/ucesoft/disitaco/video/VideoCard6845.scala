@@ -44,9 +44,29 @@ abstract class VideoCard6845 extends VideoCard:
   * 16/$10 Light pen vertical position
   * 17/$11 Light pen horizontal position
   */
-  protected val regs = Array.ofDim[Int](18)
+  protected val regs : Array[Int] = Array.ofDim[Int](18)
+
+  /*
+      Counter name	              Abbr	      Compared with	  Comment
+    Horizontal Character Counter	HCC	        R0, R1, R2	    Increments on every clock cycle
+    Horizontal Sync Counter	      HSC	        R3l
+    Vertical Character Counter	  VCC	        R4, R6, R7
+    Vertical Sync Counter	        VSC	        R3h	            R3h is fixed to 0 on CRTCs 1/2. This gives 16 lines of VSYNC
+    Vertical Line Counter	        VLC	        R9, R10, R11	  If not in IVM mode, this counter is exposed on CRTC pins RA0..RA4
+    Vertical Total Adjust Counter	VTAC	      R5	            This counter does not exist on CRTCs 0/3/4. C9 is reused instead
+    Frame Counter	                FC			                    Used to alternate frames in interlace and for CRTC cursor blinking
+    Memory Address	              MA		      R14/R15	        This counter is exposed on CRTC pins MA0..MA13
+    */
+  private var hcc = 0
+  private var hsc = 0
+  private var vcc = 0
+  private var vsc = 0
+  private var vlc = 0
+  private var vtac = 0
+  private var vtacFlag = false
+  protected var vma = 0 // REG 12/13 ram adr
+
   private var vblank = false
-  private var vblankLineCounter = 0
   private var hblank = false
   private var _isInDisplayArea = false
 
@@ -62,25 +82,19 @@ abstract class VideoCard6845 extends VideoCard:
 
   private var videoEnabled = false
 
-  protected var xchars_total = 0 // REG 0 Horizontal Total
-  protected var ychars_total = 0 // REG 9 Character Total Vertical
-  protected var cursor_pos = 0 // REG 14-5 Cursor location HI/LO
-  protected var cursorOn = true
-  protected var ypos = 0
-  protected var xpos = 0
-  protected var ram_ptr = 0 // REG 12/13 ram adr
+  private var xchars_total = 0 // REG 0 Horizontal Total
+  private var ychars_total = 0 // REG 9 Character Total Vertical
+  private var cursor_pos = 0 // REG 14-5 Cursor location HI/LO
+  private var cursorOn = true
+  private var ypos = 0
+  private var xpos = 0
 
-  protected var char_col = 0  // visible character pos on current raster line
-  protected var rasterLine = 0
-  protected var rasterLineCharPos = 0 // character pos on current raster line
-  protected var currentCharScanLine = 0 // char scan line
-  protected var visibleScreenHeightPix = 0 // total Y pixels
-  protected var visibleTextRows = 0 // total rows
-  protected var borderWidth = 0
 
-  private var rowCounter = 0
-  private var rowCounterY = 0
-  private var verticalAdjFlag = 0
+  private var rasterLine = 0
+  private var currentCharScanLine = 0 // char scan line
+  private var visibleScreenHeightPix = 0 // total Y pixels
+  private var visibleTextRows = 0 // total rows
+  private var borderWidth = 0
 
   private var textBlinkModeEnabled = false
 
@@ -117,8 +131,8 @@ abstract class VideoCard6845 extends VideoCard:
     props += Property("Raster line",rasterLine.toString)
     props += Property("H blank",hblank.toString)
     props += Property("V blank",vblank.toString)
-    props += Property("Raster char pos",rasterLineCharPos.toString)
-    props += Property("RAM address",ram_ptr.toString)
+    props += Property("Raster char pos",hcc.toString)
+    props += Property("RAM address",vma.toString)
     props += Property("RAM base address",(regs(12) << 8 | regs(13)).toString)
     props += Property("Cursor address",cursor_pos.toString)
     props += Property("H chars total",xchars_total.toString)
@@ -131,7 +145,6 @@ abstract class VideoCard6845 extends VideoCard:
   override protected def reset(): Unit =
     hblank = false
     vblank = false
-    verticalAdjFlag = 0
     textBlinkModeEnabled = false
     display.setInterlaceMode(false)
     bitmap = display.displayMem
@@ -174,6 +187,18 @@ abstract class VideoCard6845 extends VideoCard:
   protected def isHBlank: Boolean = hblank
   protected def isInDisplayArea: Boolean = _isInDisplayArea
 
+  protected def getRasterCharPos:Int = hcc
+  protected def getCurrentCharScanLine: Int = currentCharScanLine
+  protected def getXPos: Int = xpos
+  protected def getYPos: Int = ypos
+  protected def getRasterLine: Int = rasterLine
+  protected def getVisibleTextRows: Int = visibleTextRows
+  protected def getBorderWidth: Int = borderWidth
+  protected def getXCharsTotal: Int = xchars_total
+  protected def getYCharsTotal: Int = ychars_total
+  protected def getCursorPos: Int = cursor_pos
+  protected def isCursorOn: Boolean = cursorOn
+
   protected def read6845DataReg: Int =
     address_reg match
       case 14|15|16|17 => regs(address_reg)
@@ -200,8 +225,6 @@ abstract class VideoCard6845 extends VideoCard:
         updateGeometryOnNextFrame = true
       case 3 => // REG 3 Horizontal/Vertical Sync widths
         if (debug) println(s"6845: REG 3 Horizontal/Vertical Sync widths: $value")
-        // vsync width is fixed to 16 lines
-        regs(3) = 0x10 << 4 | regs(3) & 0xF
         //updateGeometry()
         updateGeometryOnNextFrame = true
       case 4 => // REG 4 Vertical Total
@@ -283,8 +306,8 @@ abstract class VideoCard6845 extends VideoCard:
       borderWidth = 0
 
     if clippingOn then
-      val clippedWidth = screenWidth - (lborder + rborder) * charWidth
-      display.setClipArea(borderWidth, 0, borderWidth + clippedWidth, screenHeight)
+      val clippedWidth = screenWidth - (lborder + rborder - 2) * charWidth // we show 1 border char on the left and on the right
+      display.setClipArea(borderWidth - charWidth, 0, borderWidth - charWidth + clippedWidth, screenHeight)
       modeListener.modeChanged(getModeListenerNotification,clippedWidth,screenHeight)
     else
       modeListener.modeChanged(getModeListenerNotification,screenWidth,screenHeight)
@@ -293,7 +316,7 @@ abstract class VideoCard6845 extends VideoCard:
   protected def getModeListenerNotification: String = ""
 
   protected def latch_addresses(): Unit =
-    ram_ptr = regs(12) << 8 | regs(13)
+    vma = regs(12) << 8 | regs(13)
 
   protected def textModeBlinkModeEnabled(enabled:Boolean): Unit = textBlinkModeEnabled = enabled
   protected def isBlinkingModeEnabled: Boolean = textBlinkModeEnabled
@@ -336,9 +359,100 @@ abstract class VideoCard6845 extends VideoCard:
     vsyncOccurred = true
     rasterLine = 0
     vblank = true
-    vblankLineCounter = 0
     nextFrame()
 
+  override final def clockChar(): Unit =
+    // Draw current char position ====================================================
+    if vblank || vcc >= visibleTextRows then
+      drawTextCharLine(vsync = true)
+    else
+      val offLine = xpos > regs(1)
+      drawMode match
+        case DrawMode.TEXT =>
+          xpos = drawTextCharLine(vsync = false,videoEnabled = videoEnabled && !offLine)
+        case DrawMode.BITMAP =>
+          drawBitmapCharLine(videoEnabled && !offLine)
+    // ===============================================================================
+    // advance on next char position
+    hcc = (hcc + 1) & 0xFF  // 8 bit
+
+    if hblank then
+      hsc = (hsc + 1) & 0xF
+      if hsc == (regs(3) & 0xF) then // == hsync width ?
+        hblank = false
+    end if
+
+    // hblank check
+    if hcc == regs(2) then // == hsync position ?
+      hblank = true
+      hsc = 0
+    end if
+
+    _isInDisplayArea = !vblank && !hblank
+
+    if hcc == xchars_total then // row finished ?
+      hcc = 0
+      xpos = 0
+
+      // NEXT RASTER LINE =====================================================
+      rasterLine += 1
+      vlc = (vlc + 1) & 0x1F
+
+      if !vblank then
+        currentCharScanLine = (currentCharScanLine + 1) & 0x7F
+      else
+        var vsyncWidth = regs(3) >> 4
+        // vsync width is fixed to 16 lines if 0
+        if vsyncWidth == 0 then vsyncWidth = 15
+        // is vblank ended ?
+        if vsc == vsyncWidth then
+          vblank = false
+          currentCharScanLine = 0
+        else
+          vsc += 1
+      end if
+
+
+      if currentCharScanLine == ychars_total + 1 then
+        currentCharScanLine = 0
+        ypos += 1
+      // current char row finished ?
+      if vlc == ychars_total + 1 then
+        vlc = 0
+        vcc = (vcc + 1) & 0xFF
+        // vsync reached ?
+        val vsyncPos = regs(7) + getYSyncOffset + vsyncManualPos
+        if vcc == vsyncPos then
+          vsc = 0
+          vsync()
+        if vcc == regs(4) + 1 then // vertical total reached ?
+          vtac = 0
+          vtacFlag = true
+      end if
+
+      if vtacFlag then
+        // we are counting vertical adjust lines
+        if vtac == regs(5) then // have we finished ?
+          latch_addresses()
+          currentCharScanLine = 0
+          vtacFlag = false
+          vlc = 0
+          vcc = 0
+          hcc = 0
+          vtac = 0
+          ypos = 0
+          if !vsyncOccurred then
+            nextFrame()
+          vsyncOccurred = false
+        else
+          vtac += 1
+        end if
+      end if
+    end if
+
+  end clockChar
+
+  /*
   override final def clockChar(): Unit =
     // draw a char line
     if vblank || rowCounter >= visibleTextRows then
@@ -378,7 +492,9 @@ abstract class VideoCard6845 extends VideoCard:
         currentCharScanLine += 1
       else
         vblankLineCounter += 1
-        val vsyncWidth = regs(3) >> 4
+        var vsyncWidth = regs(3) >> 4
+        // vsync width is fixed to 16 lines if 0
+        if vsyncWidth == 0 then vsyncWidth = 0xF
         // is vblank ended ?
         if vblankLineCounter == vsyncWidth + 1 then
           vblank = false
@@ -429,7 +545,7 @@ abstract class VideoCard6845 extends VideoCard:
             nextFrame()
     end if
   end clockChar
-
+*/
   // Abstract methods =========================================
   def getPixelClockFrequencyHz: Double
   def getPreferredSize: Dimension
@@ -441,7 +557,7 @@ abstract class VideoCard6845 extends VideoCard:
 
   protected def getInitialRegValues: Array[Int]
 
-  protected def drawTextCharLine(vsync:Boolean, videoEnabled:Boolean = true): Unit
+  protected def drawTextCharLine(vsync:Boolean, videoEnabled:Boolean = true): Int
   protected def drawBitmapCharLine(videoEnabled:Boolean = true): Unit
 
 

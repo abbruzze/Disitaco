@@ -15,9 +15,9 @@ class HDA extends MDA:
 
   override protected def getModeListenerNotification: String = 
     if getMode == DrawMode.TEXT then
-      s"HDA TEXT MODE (${regs(1)} x $visibleTextRows)"
+      s"HDA TEXT MODE (${regs(1)} x $getVisibleTextRows)"
     else
-      s"HDA BITMAP MODE (${regs(1) * GRAPHIC_CHAR_WIDTH} x ${visibleTextRows * GRAPHIC_CHAR_HEIGHT})"
+      s"HDA BITMAP MODE (${regs(1) * GRAPHIC_CHAR_WIDTH} x ${getVisibleTextRows * GRAPHIC_CHAR_HEIGHT})"
 
   override final protected def getCharWidth: Int =
     import DrawMode.*
@@ -29,13 +29,15 @@ class HDA extends MDA:
   override final protected def getHSyncOffset: Int = if getMode == DrawMode.BITMAP then 4 else super.getHSyncOffset
   // ========================= Drawing ========================================
   override protected def drawBitmapCharLine(videoEnabled:Boolean): Unit =
-    val bitmapOffset = rasterLine * screenWidth
+    val bitmapOffset = getRasterLine * screenWidth
     val bitmap = this.bitmap
     val ram = this.ram
     val charWidth = GRAPHIC_CHAR_WIDTH
-    val rightBorderPix = borderWidth + regs(1) * charWidth
-    var colPix = rasterLineCharPos * GRAPHIC_CHAR_WIDTH
-    val hborder = colPix < borderWidth || colPix >= rightBorderPix
+    val rightBorderPix = getBorderWidth + regs(1) * charWidth
+    var colPix = getRasterCharPos * GRAPHIC_CHAR_WIDTH
+    val hborder = colPix < getBorderWidth || colPix >= rightBorderPix
+    val currentCharScanLine = getCurrentCharScanLine
+
     if hborder then
       var x = 0
       while x < charWidth && colPix < screenWidth do
@@ -46,15 +48,15 @@ class HDA extends MDA:
     else
       var bitmapPtr = bitmapOffset + colPix
       var cx = 0
-      var x = colPix - borderWidth
-      val y = ypos * (ychars_total + 1) + currentCharScanLine
+      var x = colPix - getBorderWidth
+      val y = getYPos * (getYCharsTotal + 1) + currentCharScanLine
       lastBit = false
       while cx < GRAPHIC_CHAR_WIDTH && colPix < rightBorderPix do
         // The offset (into the page) of the byte containing dot (x,y) in each page is:
         // [2000H * (Y MOD 4)] + [90 * INTEGER (Y/4)] + [INTEGER (X/8)]
         // and the bit in the byte that stores the dot is bit position
         // 7 - (X MOD 8)
-        val ptr = ((ram_ptr + pageOffset) & 0xFFFF) + 0x2000 * (y & 3) + 90 * (y >> 2) + (x >> 3)
+        val ptr = (vma + pageOffset + 0x2000 * (y & 3) + 90 * (y >> 2) + (x >> 3)) & 0xFFFF
         val gfx = ram(ptr)
         val bit = 7 - (x & 7)
         lastBit = (gfx & (1 << bit)) != 0

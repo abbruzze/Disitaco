@@ -120,9 +120,9 @@ class CGA extends VideoCard6845:
 
   override protected def getModeListenerNotification: String =
     if getMode == DrawMode.TEXT then
-      s"CGA TEXT MODE (${regs(1)} x $visibleTextRows)"
+      s"CGA TEXT MODE (${regs(1)} x $getVisibleTextRows)"
     else
-      s"CGA BITMAP MODE (${regs(1) * getCharWidth} x ${visibleTextRows * (ychars_total + 1)})"
+      s"CGA BITMAP MODE (${regs(1) * getCharWidth} x ${getVisibleTextRows * (getYCharsTotal + 1)})"
 
   // ========================= Borders & clips ================================
   override protected def getHSyncOffset: Int = if _40ColMode || getMode == DrawMode.BITMAP then 5 else 2
@@ -135,23 +135,26 @@ class CGA extends VideoCard6845:
   // ========================= Drawing ========================================
   private def fetchGFXAndAttrs(): Unit =
     val ram = this.ram
+    val xpos = getXPos
     if xpos == 0 then
-      ram_base_address = ((ram_ptr << 1) + local_ram_ptr) & RAM_SIZE_MASK
-    gfxBuffer(xpos) = ram(((ram_ptr << 1) + local_ram_ptr) & RAM_SIZE_MASK) & 0xFF
+      ram_base_address = ((vma << 1) + local_ram_ptr) & RAM_SIZE_MASK
+    gfxBuffer(xpos) = ram(((vma << 1) + local_ram_ptr) & RAM_SIZE_MASK) & 0xFF
     local_ram_ptr += 1
-    attrBuffer(xpos) = ram(((ram_ptr << 1) + local_ram_ptr) & RAM_SIZE_MASK) & 0xFF
+    attrBuffer(xpos) = ram(((vma << 1) + local_ram_ptr) & RAM_SIZE_MASK) & 0xFF
     local_ram_ptr += 1
   end fetchGFXAndAttrs
 
-  override final protected def drawTextCharLine(vsync: Boolean, videoEnabled: Boolean): Unit =
-    val bitmapOffset = rasterLine * screenWidth
+  override final protected def drawTextCharLine(vsync: Boolean, videoEnabled: Boolean): Int =
+    val bitmapOffset = getRasterLine * screenWidth
     val bitmap = this.bitmap
     val blinkModeEnabled = isBlinkingModeEnabled
     val charWidth = getCharWidth
-    val rightBorderPix = borderWidth + regs(1) * charWidth
-    var colPix = rasterLineCharPos * charWidth
+    val rightBorderPix = getBorderWidth + regs(1) * charWidth
+    var colPix = getRasterCharPos * charWidth
+    val currentCharScanLine = getCurrentCharScanLine
+    var xpos = getXPos
 
-    hborder = colPix < borderWidth || colPix >= rightBorderPix
+    hborder = colPix < getBorderWidth || colPix >= rightBorderPix
 
     if vsync || hborder then
       val borderColor = if getMode == DrawMode.BITMAP then
@@ -177,15 +180,13 @@ class CGA extends VideoCard6845:
       var reverse = false
       var blink = false
 
-      val charCode = gfxBuffer(char_col)
-      val attr = attrBuffer(char_col)
+      val charCode = gfxBuffer(xpos)
+      val attr = attrBuffer(xpos)
       val cursorMode = regs(10) & 0x60
       val cursorTopLine = regs(10) & 0x1F
       val cursorBottomLine = regs(11) & 0x1F
-      val showCursor = ram_base_address + (xpos << 1) == (cursor_pos << 1)
-
-      xpos += 1 // go next char
-
+      val showCursor = ram_base_address + (xpos << 1) == (getCursorPos << 1)
+      
       val bf = (attr & 0x70) >> 1 | (attr & 7)
 
       /*
@@ -211,7 +212,7 @@ class CGA extends VideoCard6845:
             currentCharScanLine < cursorBottomLine || currentCharScanLine > cursorTopLine
 
         reverse ^= isCursorLine
-        if isCursorLine then reverse ^= cursorOn // cursor blinking
+        if isCursorLine then reverse ^= isCursorOn // cursor blinking
 
       val char_ptr = (charCode << 3) + currentCharScanLine
       val charBitmap = charRom(fontROMOffset | char_ptr).toInt
@@ -241,8 +242,9 @@ class CGA extends VideoCard6845:
         colPix += 1
         x += 1
       end while
-      char_col += 1
+      xpos += 1
     end if
+    xpos
   end drawTextCharLine
 
   override protected def vsync(): Unit =
@@ -256,12 +258,12 @@ class CGA extends VideoCard6845:
       case _ =>
         0
     val backgroundColor = PALETTE(backgroundColorIndex)
-    val bitmapOffset = rasterLine * screenWidth
+    val bitmapOffset = getRasterLine * screenWidth
     val bitmap = this.bitmap
     val charWidth = getCharWidth
-    val rightBorderPix = borderWidth + regs(1) * charWidth
-    var colPix = rasterLineCharPos * charWidth
-    val hborder = colPix < borderWidth || colPix >= rightBorderPix
+    val rightBorderPix = getBorderWidth + regs(1) * charWidth
+    var colPix = getRasterCharPos * charWidth
+    val hborder = colPix < getBorderWidth || colPix >= rightBorderPix
 
     if hborder then
       val borderColorIndex = resolution match
@@ -282,8 +284,8 @@ class CGA extends VideoCard6845:
       val _320x200 = resolution == MEDIUM_RES
       val _160x200 = resolution == LOW_RES
       val bytesWidth = regs(1) << 1
-      val row = (((ram_ptr << 1) + local_ram_ptr) & RAM_SIZE_MASK) / bytesWidth
-      val col = (((ram_ptr << 1) + local_ram_ptr) & RAM_SIZE_MASK) % bytesWidth
+      val row = (((vma << 1) + local_ram_ptr) & RAM_SIZE_MASK) / bytesWidth
+      val col = (((vma << 1) + local_ram_ptr) & RAM_SIZE_MASK) % bytesWidth
       var ramPtr = (row & 1) << 13 // 0x2000 offset for odd rows
       ramPtr += (row >> 1) * bytesWidth + col
       var gfx = 0

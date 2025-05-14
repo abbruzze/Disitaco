@@ -24,7 +24,7 @@ class MDA extends VideoCard6845:
   protected var lastBit = false
   private var ram_base_address = 0
 
-  override protected def getModeListenerNotification: String = s"MDA TEXT MODE (${regs(1)} x $visibleTextRows)"
+  override protected def getModeListenerNotification: String = s"MDA TEXT MODE (${regs(1)} x $getVisibleTextRows)"
 
   override def getProperties: List[PCComponent.Property] = PCComponent.Property("Last bit",lastBit.toString) :: super.getProperties
 
@@ -57,23 +57,26 @@ class MDA extends VideoCard6845:
   // ========================= Drawing ========================================
   private def fetchGFXAndAttrs(): Unit =
     val ram = this.ram
+    val xpos = getXPos
     if xpos == 0 then
-      ram_base_address = ram_ptr
-    gfxBuffer(xpos) = ram(ram_ptr) & 0xFF
-    ram_ptr += 1
-    attrBuffer(xpos) = ram(ram_ptr) & 0xFF
-    ram_ptr += 1
+      ram_base_address = vma
+    gfxBuffer(xpos) = ram(vma) & 0xFF
+    vma += 1
+    attrBuffer(xpos) = ram(vma) & 0xFF
+    vma += 1
   end fetchGFXAndAttrs
 
-  override final protected def drawTextCharLine(vsync: Boolean, videoEnabled: Boolean): Unit =
-    val bitmapOffset = rasterLine * screenWidth
+  override final protected def drawTextCharLine(vsync: Boolean, videoEnabled: Boolean): Int =
+    val bitmapOffset = getRasterLine * screenWidth
     val bitmap = this.bitmap
     val blinkModeEnabled = isBlinkingModeEnabled
     val charWidth = TEXT_CHAR_WIDTH
-    val rightBorderPix = borderWidth + regs(1) * charWidth
-    var colPix = rasterLineCharPos * charWidth
+    val rightBorderPix = getBorderWidth + regs(1) * charWidth
+    var colPix = getRasterCharPos * charWidth
+    val currentCharScanLine = getCurrentCharScanLine
+    var xpos = getXPos
 
-    val hborder = colPix < borderWidth || colPix >= rightBorderPix
+    val hborder = colPix < getBorderWidth || colPix >= rightBorderPix
     if vsync || !videoEnabled || hborder then
       var x = 0
       while x < charWidth && colPix < screenWidth do
@@ -91,14 +94,12 @@ class MDA extends VideoCard6845:
       var underline = false
       var fg = FOREGROUND_COLOR
 
-      val charCode = gfxBuffer(char_col)
-      val attr = attrBuffer(char_col)
+      val charCode = gfxBuffer(xpos)
+      val attr = attrBuffer(xpos)
       val cursorMode = regs(10) & 0x60
       val cursorTopLine = regs(10) & 0x1F
       val cursorBottomLine = regs(11) & 0x1F
-      val showCursor = ram_base_address + (xpos << 1) == (cursor_pos << 1)
-
-      xpos += 1 // go next char
+      val showCursor = ram_base_address + (xpos << 1) == (getCursorPos << 1)
 
       val bf = (attr & 0x70) >> 1 | (attr & 7)
 
@@ -138,7 +139,7 @@ class MDA extends VideoCard6845:
             currentCharScanLine < cursorBottomLine || currentCharScanLine > cursorTopLine
         
         reverse ^= isCursorLine
-        if isCursorLine then reverse ^= cursorOn // cursor blinking
+        if isCursorLine then reverse ^= isCursorOn // cursor blinking
 
       // the lines 8-13 have an offset of 2K
       val char_ptr = (charCode << 3) + (if currentCharScanLine < 8 then 0 else 2040) + currentCharScanLine
@@ -174,8 +175,9 @@ class MDA extends VideoCard6845:
         colPix += 1
         x += 1
       end while
-      char_col += 1
+      xpos += 1
     end if
+    xpos
   end drawTextCharLine
 
   override protected def drawBitmapCharLine(videoEnabled:Boolean): Unit = {/* bitmap N/A */}
