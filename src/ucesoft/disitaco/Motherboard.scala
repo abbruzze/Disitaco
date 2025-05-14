@@ -17,6 +17,9 @@ import scala.compiletime.uninitialized
 class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardListener with Clock.Clockable:
   private inline val DEFAULT_CLOCK_FREQ = 4_770_000 // Mhz
 
+  final val floppyDrives = 2
+  final val hardDisks = 2
+
   final val clock = new Clock("MasterClock",DEFAULT_CLOCK_FREQ)
   final val memory = new MMU(640)
   final val dma = new DMA(memory)
@@ -28,7 +31,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   final val keyboard = new Keyboard(clock,pic.pic.setIRQ(1,_)) // keyboard sends interrupt to line 1
   final val videoCard = new CGA
   final val fdc = new FDC(dma.dma,2,pic.pic.setIRQ(6,_)) // fdc sends interrupt to line 6
-  final val hdc = new HardDiskFDC(dma.dma,3,pic.pic.setIRQ(5,_),diskIDOffset = 2,numberOfHDDrives = 2) // hdc sends interrupt to line 5
+  final val hdc = new HardDiskFDC(dma.dma,3,pic.pic.setIRQ(5,_),diskIDOffset = 2,numberOfHDDrives = hardDisks) // hdc sends interrupt to line 5
   final val rtc = new RTC(clock)
 
   private final val nmiMaskDevice = new IODevice:

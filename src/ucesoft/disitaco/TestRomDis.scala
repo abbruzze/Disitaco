@@ -2,7 +2,7 @@ package ucesoft.disitaco
 
 import ucesoft.disitaco.cpu.Registers
 import ucesoft.disitaco.debugger.Debugger
-import ucesoft.disitaco.storage.{DiskImage, FixedDiskImage, FloppyDiskImage}
+import ucesoft.disitaco.storage.{DiskImage, Fast13IntHandler, FixedDiskImage, FloppyDiskImage}
 import ucesoft.disitaco.ui.StoragePanel
 import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
 
@@ -87,9 +87,9 @@ object TestRomDis:
         SwingUtilities.invokeLater(() => {
           displayLabel.setText(s"$mode $w x $h")
           displayLabel.invalidate()
-//          if h > 100 then
-//            display.setPreferredSize(new Dimension(w,h * 2))
-//            frame.pack()
+          if h > 100 then
+            display.setPreferredSize(new Dimension(w,h * 2))
+            frame.pack()
         })
     }
 
@@ -116,63 +116,7 @@ object TestRomDis:
     display.addKeyListener(mother.keyboard)
     display.setFocusable(true)
 
-    mother.cpu.setInterruptHandler(0x13,regs => {
-      import regs.*
-      ah match
-        case 0x02 =>
-          val track = cx >> 8
-          var sect = cx & 0xFF
-          val head = dx >> 8
-          var n = ax & 0xFF
-          var addr = (es << 4) + bx
-          val drive = dx & 0xFF
-          if (drive & 0x80) == 0 && mother.fdc.fdc.getDrives(drive).hasDiskInserted then
-            println("read sectors (drive=" + drive + ", track=" + track + ", sect=" + sect + ", head=" + head + ", n=" + n + ")")
-            mother.fdc.fdc.getDrives(drive).getListener.onPosition(drive,track,head,sect)
-            while n > 0 do
-              val bytes = mother.fdc.fdc.getDrives(drive).getDiskInserted.get.readSector(track,head,sect).toArray
-              var offset = 0
-              while offset < bytes.length do
-                mother.memory.writeByte(addr,bytes(offset),abs = true)
-                addr += 1
-                offset += 1
-              //println("\tOk sector " + sect + " read.")
-              n -= 1
-              sect += 1
-            mother.memory.writeByte(0x441,0,abs = true)
-            clearFlags(Registers.F_CARRY)
-            ah = 0
-            true
-          else
-            false
-        /*case 0x08 =>
-          if (dl & 0x80) == 0 then
-            val drive = mother.fdc.fdc.getDrives(dl)
-            if !drive.hasDiskInserted then
-              setFlags(Registers.F_CARRY)
-              mother.memory.writeByte(0x441, 0x40, abs = true)
-            else
-              val geo = drive.getDiskInserted.get.diskGeometry
-              ch = geo.tracks & 0xFF
-              cl = (geo.tracks >> 2) & 0xC0 | (geo.sectorsPerTrack & 0x3F)
-              dh = geo.heads & 0xFF
-              dl = mother.SW1.switches >> 6
-              bh = 0
-              bl = geo match
-                case DiskImage.geo360K => 0x01
-                case DiskImage.geo720K => 0x03
-                case DiskImage.geo1200K => 0x02
-                case DiskImage.geo1440K => 0x04
-                case _ => 0x00
-            di = 0xEFC7
-            es = 0xF000
-            println(s"DRIVE SPECIFICATIONS #${drive.id}...bl=$bl")
-            true
-          else
-            false*/
-        case _ =>
-          false
-    })
+    mother.cpu.setInterruptHandler(0x13,new Fast13IntHandler(mother))
 
     mother.initComponent()
     debugger.setRAM(mem.getRAM)
