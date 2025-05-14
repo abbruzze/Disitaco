@@ -1,0 +1,188 @@
+package ucesoft.disitaco
+
+import ucesoft.disitaco.cpu.Registers
+import ucesoft.disitaco.debugger.Debugger
+import ucesoft.disitaco.storage.{DiskImage, FixedDiskImage, FloppyDiskImage}
+import ucesoft.disitaco.ui.StoragePanel
+import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
+
+import java.awt.{BorderLayout, Dimension, FlowLayout}
+import java.nio.file.Paths
+import javax.swing.*
+
+/**
+ * @author Alessandro Abbruzzetti
+ *         Created on 13/03/2025 19:36  
+ */
+object TestRomDis:
+  def main(args:Array[String]): Unit =
+/*
+    val u19 = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\turboxtbios-u19.rom"""))
+    val u18 = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\turboxtbios-u18.rom"""))
+//    val u19 = java.nio.file.Files.readAllBytes(Paths.get("""C:\temp\86box\roms\machines\ibmxt86\BIOS_5160_10JAN86_U19_62X0854_27256_F000.BIN"""))
+//    val u18 = java.nio.file.Files.readAllBytes(Paths.get("""C:\temp\86box\roms\machines\ibmxt86\BIOS_5160_10JAN86_U18_62X0851_27256_F800.BIN"""))
+//    val u19 = java.nio.file.Files.readAllBytes(Paths.get("""C:\temp\86box\roms\machines\ibmxt\BIOS_5160_16AUG82_U19_5000027.BIN"""))
+//    val u18 = java.nio.file.Files.readAllBytes(Paths.get("""C:\temp\86box\roms\machines\ibmxt\BIOS_5160_16AUG82_U18_5000026.BIN"""))
+    if (u19.length % 8192) != 0 || (u18.length % 8192) != 0 then
+      println("ROM's length is not a multiple of 8192")
+      sys.exit(1)
+
+    var rom = u19
+    for _ <- 1 to (32768 - u19.length) / 8192 do
+      rom = rom ++ u19
+    rom = rom ++ u18
+    for _ <- 1 to (32768 - u18.length) / 8192 do
+      rom = rom ++ u18
+*/
+    val rom/*glabios*/ = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\GLABIOS_0.2.5_8T.ROM"""))
+
+    val mother = new Motherboard
+    val frame = new JFrame()
+    val dim = mother.videoCard.getPreferredSize
+    val display = new Display(dim.width, dim.height, "MDA Test", frame, mother.clock)
+    display.setFocusable(true)
+    display.setFocusTraversalKeysEnabled(false)
+    display.grabFocus()
+    val displayLabel = new JLabel("Waiting video display updating ...")
+    val displayPanel = new JPanel(new BorderLayout())
+    val infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
+    infoPanel.add(displayLabel)
+    val storagePanel = new StoragePanel
+    SwingUtilities.invokeAndWait(() => {
+      infoPanel.add(storagePanel)
+      displayPanel.add("Center", display)
+      displayPanel.add("South", infoPanel)
+      display.setPreferredSize(new Dimension(dim.width, dim.height))
+      mother.display = display
+      frame.getContentPane.add("Center", displayPanel)
+      frame.pack()
+      frame.setVisible(true)
+    })
+
+    val mem = mother.memory
+    val cpu = mother.cpu
+
+    storagePanel.setDiskette(2,2,new StoragePanel.StorageListener:
+      override def openImage(diskId: Int): Unit =
+        val fc = new JFileChooser()
+        fc.showOpenDialog(frame) match
+          case JFileChooser.APPROVE_OPTION =>
+            val image = new FloppyDiskImage(fc.getSelectedFile.toString)
+            mother.fdc.fdc.getDrives(diskId).insertDisk(image)
+          case _ =>
+      override def ejectImage(diskId: Int): Unit =
+        mother.fdc.fdc.getDrives(diskId).ejectDisk()
+    )
+    for d <- mother.fdc.fdc.getDrives do
+      d.setListener(storagePanel)
+
+    // attach disk
+//    val disk = new FloppyDiskImage("""G:\My Drive\Emulatori\x86\dos\msdos-3.3_01.img""")
+//    val disk2 = new FloppyDiskImage("""G:\My Drive\Emulatori\x86\dos\checkit.img""")
+//    mother.fdc.fdc.getDrives(0).insertDisk(disk)
+//    mother.fdc.fdc.getDrives(1).insertDisk(disk2)
+
+    MessageBus.add {
+      case MessageBus.VideoModeChanged(_, mode, w, h) =>
+        SwingUtilities.invokeLater(() => {
+          displayLabel.setText(s"$mode $w x $h")
+          displayLabel.invalidate()
+//          if h > 100 then
+//            display.setPreferredSize(new Dimension(w,h * 2))
+//            frame.pack()
+        })
+    }
+
+    val debugger = new Debugger(cpu,mother.videoCard,() => {},mother.videoCard,mother.dma.dma,mother.pit.timer,mother.keyboard,mother.fdc.fdc,mother.rtc.rtc)
+    val log = Logger.setLogger(debugger.log)
+    mother.setLogger(log)
+
+    mem.loadROM(rom)
+    val glatick = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\GLaTICK_0.8.5_AT.ROM"""))
+    mem.registerOptionROM(0xD0000,glatick,"Glatick")
+    val harddisk = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\IBM_XEBEC_5000059_1982.BIN""")) // IBM_XEBEC_62X0822_1985.BIN / IBM_XEBEC_5000059_1982
+    mem.registerOptionROM(0xD4000,harddisk,"harddisk")
+    val hdDisk = new FixedDiskImage("""C:\Users\ealeame\Downloads\PCDOS200-EMPTY.img""")
+    val h1Disk = new FixedDiskImage("""C:\Users\ealeame\Downloads\PCDOS200-EMPTY_D.img""")
+    for d <- mother.hdc.hdFdc.getDrives do
+      d.setListener(storagePanel)
+    mother.hdc.hdFdc.getDrives(0).insertDisk(hdDisk)
+    mother.hdc.hdFdc.getDrives(1).insertDisk(h1Disk)
+//    val basic = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\basic_1.10.rom"""))
+//    mem.registerOptionROM(0xF6000,basic,"Basic 1.10")
+
+    mother.videoCard.setClippingOn(on = true)
+
+    display.addKeyListener(mother.keyboard)
+    display.setFocusable(true)
+
+    mother.cpu.setInterruptHandler(0x13,regs => {
+      import regs.*
+      ah match
+        case 0x02 =>
+          val track = cx >> 8
+          var sect = cx & 0xFF
+          val head = dx >> 8
+          var n = ax & 0xFF
+          var addr = (es << 4) + bx
+          val drive = dx & 0xFF
+          if (drive & 0x80) == 0 && mother.fdc.fdc.getDrives(drive).hasDiskInserted then
+            println("read sectors (drive=" + drive + ", track=" + track + ", sect=" + sect + ", head=" + head + ", n=" + n + ")")
+            mother.fdc.fdc.getDrives(drive).getListener.onPosition(drive,track,head,sect)
+            while n > 0 do
+              val bytes = mother.fdc.fdc.getDrives(drive).getDiskInserted.get.readSector(track,head,sect).toArray
+              var offset = 0
+              while offset < bytes.length do
+                mother.memory.writeByte(addr,bytes(offset),abs = true)
+                addr += 1
+                offset += 1
+              //println("\tOk sector " + sect + " read.")
+              n -= 1
+              sect += 1
+            mother.memory.writeByte(0x441,0,abs = true)
+            clearFlags(Registers.F_CARRY)
+            ah = 0
+            true
+          else
+            false
+        /*case 0x08 =>
+          if (dl & 0x80) == 0 then
+            val drive = mother.fdc.fdc.getDrives(dl)
+            if !drive.hasDiskInserted then
+              setFlags(Registers.F_CARRY)
+              mother.memory.writeByte(0x441, 0x40, abs = true)
+            else
+              val geo = drive.getDiskInserted.get.diskGeometry
+              ch = geo.tracks & 0xFF
+              cl = (geo.tracks >> 2) & 0xC0 | (geo.sectorsPerTrack & 0x3F)
+              dh = geo.heads & 0xFF
+              dl = mother.SW1.switches >> 6
+              bh = 0
+              bl = geo match
+                case DiskImage.geo360K => 0x01
+                case DiskImage.geo720K => 0x03
+                case DiskImage.geo1200K => 0x02
+                case DiskImage.geo1440K => 0x04
+                case _ => 0x00
+            di = 0xEFC7
+            es = 0xF000
+            println(s"DRIVE SPECIFICATIONS #${drive.id}...bl=$bl")
+            true
+          else
+            false*/
+        case _ =>
+          false
+    })
+
+    mother.initComponent()
+    debugger.setRAM(mem.getRAM)
+    debugger.setROM(mem.getROM)
+
+    SwingUtilities.invokeAndWait(() => debugger.enableTracing(true))
+
+    mother.resetComponent()
+    mother.clock.start()
+    mother.clock.setErrorHandler(t => {
+      t.printStackTrace()
+      sys.exit(1)
+    })
