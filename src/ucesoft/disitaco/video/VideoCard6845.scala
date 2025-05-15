@@ -70,8 +70,6 @@ abstract class VideoCard6845 extends VideoCard:
   private var hblank = false
   private var _isInDisplayArea = false
 
-  private var vsyncOccurred = false
-
   private var display: Display = uninitialized
   protected var bitmap: Array[Int] = uninitialized
   private var drawMode = DrawMode.TEXT
@@ -356,9 +354,7 @@ abstract class VideoCard6845 extends VideoCard:
   end nextFrame
 
   protected def vsync(): Unit =
-    vsyncOccurred = true
     rasterLine = 0
-    vblank = true
     nextFrame()
 
   override final def clockChar(): Unit =
@@ -407,11 +403,11 @@ abstract class VideoCard6845 extends VideoCard:
         // is vblank ended ?
         if vsc == vsyncWidth then
           vblank = false
+          vsync()
           currentCharScanLine = 0
         else
           vsc += 1
       end if
-
 
       if currentCharScanLine == ychars_total + 1 then
         currentCharScanLine = 0
@@ -424,7 +420,7 @@ abstract class VideoCard6845 extends VideoCard:
         val vsyncPos = regs(7) + getYSyncOffset + vsyncManualPos
         if vcc == vsyncPos then
           vsc = 0
-          vsync()
+          vblank = true
         if vcc == regs(4) + 1 then // vertical total reached ?
           vtac = 0
           vtacFlag = true
@@ -441,9 +437,6 @@ abstract class VideoCard6845 extends VideoCard:
           hcc = 0
           vtac = 0
           ypos = 0
-          if !vsyncOccurred then
-            nextFrame()
-          vsyncOccurred = false
         else
           vtac += 1
         end if
@@ -452,100 +445,6 @@ abstract class VideoCard6845 extends VideoCard:
 
   end clockChar
 
-  /*
-  override final def clockChar(): Unit =
-    // draw a char line
-    if vblank || rowCounter >= visibleTextRows then
-      drawTextCharLine(vsync = true)
-    else
-      val offLine = char_col > regs(1)
-      drawMode match
-        case DrawMode.TEXT =>
-          drawTextCharLine(vsync = false,videoEnabled = videoEnabled && !offLine)
-        case DrawMode.BITMAP =>
-          drawBitmapCharLine(videoEnabled && !offLine)
-
-    // advance on next char position
-    rasterLineCharPos += 1
-    // hblank
-    if rasterLineCharPos == regs(2) then
-      hblank = true
-    //      if pendingDrawModeChanged then
-    //        pendingDrawModeChanged = false
-    //        drawMode = pendingDrawMode
-    //        updateGeometry()
-
-    if rasterLineCharPos == regs(2) + (regs(3) & 0xF) then
-      hblank = false
-
-    _isInDisplayArea = !vblank && !hblank
-
-    if rasterLineCharPos >= xchars_total then // go to next line
-      rasterLineCharPos = 0
-      xpos = 0
-      char_col = 0
-
-      // NEXT RASTER LINE =====================================================
-      rasterLine += 1
-
-      if !vblank then
-        currentCharScanLine += 1
-      else
-        vblankLineCounter += 1
-        var vsyncWidth = regs(3) >> 4
-        // vsync width is fixed to 16 lines if 0
-        if vsyncWidth == 0 then vsyncWidth = 0xF
-        // is vblank ended ?
-        if vblankLineCounter == vsyncWidth + 1 then
-          vblank = false
-          rowCounterY = 0
-
-      // current char row finished ?
-      if currentCharScanLine > ychars_total then
-        currentCharScanLine = 0
-        ypos += 1
-
-      rowCounterY += 1
-      if verticalAdjFlag == 1 then
-        if rowCounterY == (regs(5) & 0x1F) then verticalAdjFlag = 2
-      else if rowCounterY > ychars_total then // next row
-        rowCounterY = 0
-        rowCounter += 1
-        val vsyncPos = regs(7) + 1 + getYSyncOffset + vsyncManualPos
-
-        if rowCounter == vsyncPos then
-          vsync()
-
-//      if rowCounter == visibleTextRows && currentCharScanLine == 0 then
-//        latch_addresses()
-
-      val verticalTotal = regs(4)
-      if rowCounter > verticalTotal then
-        if vsyncOccurred then
-          // are we drawn the last line (total char lines + adjust)?
-          val verticalAdjust = regs(5)
-          if verticalAdjFlag == 2 || verticalAdjust == 0 then
-            rowCounter = 0
-            rowCounterY = 0
-            verticalAdjFlag = 0
-            currentCharScanLine = 0
-            ypos = 0
-            latch_addresses()
-            vsyncOccurred = false
-          else verticalAdjFlag = 1
-        else
-          rowCounter = 0
-          rowCounterY = 0
-          verticalAdjFlag = 0
-          currentCharScanLine = 0
-          ypos = 0
-          //latch_addresses()
-          if rasterLine >= screenHeight then
-            rasterLine = 0
-            nextFrame()
-    end if
-  end clockChar
-*/
   // Abstract methods =========================================
   def getPixelClockFrequencyHz: Double
   def getPreferredSize: Dimension
