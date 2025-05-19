@@ -28,6 +28,9 @@ class Speaker(val sampleRate:Int) extends Audio with Runnable:
   private var lastPerformance = 0
   private var turnedOn = false
 
+  private var sampleSum = 0
+  private var sampleCount = 0
+
   setBufferMillisNow(bufferInMillis)
   thread.setPriority(Thread.MAX_PRIORITY)
 
@@ -58,7 +61,7 @@ class Speaker(val sampleRate:Int) extends Audio with Runnable:
 
   def setBufferInMillis(bim:Int) : Unit =
     bufferInMillis = bim
-    bufferPendingSize = (sampleRate * bim / 1000.0).toInt
+    bufferPendingSize = 2 * (sampleRate * bim / 1000.0).toInt
 
   override protected def reset(): Unit =
     queue.clear()
@@ -78,7 +81,7 @@ class Speaker(val sampleRate:Int) extends Audio with Runnable:
 
   inline private def getSourceLine: Option[SourceDataLine] =
     try
-      val format = new AudioFormat(sampleRate.toFloat, 8 ,1, false, false)
+      val format = new AudioFormat(sampleRate.toFloat, 16 ,1, true, false)
 
       val info = new DataLine.Info(classOf[SourceDataLine], format)
       val sourceLine = AudioSystem.getLine(info).asInstanceOf[SourceDataLine]
@@ -95,7 +98,7 @@ class Speaker(val sampleRate:Int) extends Audio with Runnable:
       sourceLine.open(format)
 
       volumeLine = sourceLine.getControl(FloatControl.Type.MASTER_GAIN).asInstanceOf[FloatControl]
-      setMasterVolume(100)
+      setMasterVolume(70)
 
       sourceLine.start()
       Some(sourceLine)
@@ -142,9 +145,20 @@ class Speaker(val sampleRate:Int) extends Audio with Runnable:
     log.info("Audio is %s",if on then "on" else "off")
     turnedOn = on
 
-  override def setOut(_sample: Boolean): Unit =
-    val sample = if _sample then 0xFF.toByte else 0x00.toByte//if _sample then 0xF.toByte else (~0xF).toByte
-    buffer(bufferId) = if !turnedOn || muted then 0 else sample ; bufferId += 1
+  override def addSample(sample: Boolean): Unit =
+    sampleSum += (if !turnedOn || muted then -1 else if sample then 1 else -1)
+    sampleCount += 1
+
+  override def setOut(): Unit =
+    val _sample = sampleSum.toDouble / sampleCount
+    sampleCount = 0
+    sampleSum = 0
+    var sample = (_sample * 32768).toInt
+    if sample > 32767 then sample = 32767
+    else if sample < -32768 then sample = -32768
+
+    buffer(bufferId) = (sample & 0xFF).toByte ; bufferId += 1
+    buffer(bufferId) = (sample >> 8).toByte ; bufferId += 1
     //println(s"OUT=${_sample} = ${buffer(bufferId - 1)}")
     if bufferId == bufferSize then
       queue.put(buffer)

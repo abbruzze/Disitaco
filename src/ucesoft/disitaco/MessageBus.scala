@@ -12,6 +12,7 @@ object MessageBus:
 
   // ======== Messages ==========================
   case class VideoModeChanged(override val source:AnyRef,description:String,width:Int,height:Int) extends Message
+  case class WarpMode(override val source:AnyRef,enabled:Boolean) extends Message
   // ============================================
   trait MessageListener:
     def onMessage(msg:Message): Unit

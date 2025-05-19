@@ -290,6 +290,7 @@ abstract class VideoCard6845 extends VideoCard:
     modeListener.charFrequencyChanged(getPixelClockFrequencyHz / charWidth)
 
     val newScreenWidth = htotal * charWidth
+
     if newScreenWidth != screenWidth || totalLines != screenHeight then
       screenWidth = newScreenWidth
       screenHeight = totalLines
@@ -397,11 +398,8 @@ abstract class VideoCard6845 extends VideoCard:
       if !vblank then
         currentCharScanLine = (currentCharScanLine + 1) & 0x7F
       else
-        var vsyncWidth = regs(3) >> 4
-        // vsync width is fixed to 16 lines if 0
-        if vsyncWidth == 0 then vsyncWidth = 15
         // is vblank ended ?
-        if vsc == vsyncWidth then
+        if vsc == 16 then
           vblank = false
           vsync()
           currentCharScanLine = 0

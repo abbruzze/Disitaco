@@ -6,6 +6,7 @@ import ucesoft.disitaco.chips.{i8253, i8255}
 import ucesoft.disitaco.cpu.i8088
 import ucesoft.disitaco.io.{DMA, FDC, HardDiskFDC, IODevice, IOHandler, PIC, PIT, PPI, RTC}
 import ucesoft.disitaco.keyboard.Keyboard
+import ucesoft.disitaco.speaker.Speaker
 import ucesoft.disitaco.video.{CGA, HDA, MDA, VideoCard}
 
 import scala.compiletime.uninitialized
@@ -16,6 +17,8 @@ import scala.compiletime.uninitialized
  */
 class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardListener with Clock.Clockable:
   private inline val DEFAULT_CLOCK_FREQ = 4_770_000 // Mhz
+  private inline val SPEAKER_AUDIO_RATE = 44_100 // 44.1 Khz
+  private inline val SPEAKER_SAMPLE_CYCLES = DEFAULT_CLOCK_FREQ / SPEAKER_AUDIO_RATE
 
   final val floppyDrives = 2
   final val hardDisks = 2
@@ -33,6 +36,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   final val fdc = new FDC(dma.dma,2,pic.pic.setIRQ(6,_)) // fdc sends interrupt to line 6
   final val hdc = new HardDiskFDC(dma.dma,3,pic.pic.setIRQ(5,_),diskIDOffset = 2,numberOfHDDrives = hardDisks) // hdc sends interrupt to line 5
   final val rtc = new RTC(clock)
+  final val speaker = new Speaker(SPEAKER_AUDIO_RATE)
 
   private final val nmiMaskDevice = new IODevice:
     override protected val componentName = "NMI Mask"
@@ -57,6 +61,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   private var i8253Cycles = 4 // 4.77 / 4
   private var i8253CycleCounter = i8253Cycles
   private var lastVideoCharFrequency = 0.0
+  private var speakerCycles = 0
 
   private var cpuClockToWait = 0
 
@@ -124,10 +129,14 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   add(fdc)
   add(hdc)
   add(rtc)
+  add(speaker)
   ioDevices.foreach(add)
 
   override protected def init(): Unit =
     wiring()
+    speaker.setBufferInMillis(10)
+    speaker.start()
+    speaker.turn(on = true)
   end init
 
   private def wiring(): Unit =
@@ -135,8 +144,6 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
     // 8253 ports ======================================================
     val timer2Out = new i8253.CounterOutListener:
       override def outChanged(value: Boolean): Unit =
-        // TODO: Speaker output & with speakerDataEnabled
-
         timer2OutValue = value
     log.info("Creating 8255's ports ...")
     // 8255 ports ======================================================
@@ -173,7 +180,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
        */
       override def read: Int =
         val sw1 = if (portB.read & 8) == 0 then SW1.switches & 0xF else SW1.switches >> 4
-        sw1 | (if timer2OutValue then 0x20 else 0) // | TODO Monitor of Speaker
+        sw1 | (if timer2OutValue then 0x20 else 0) | (if timer2OutValue && speakerDataEnabled then 0x10 else 0)
       override def write(value: Int): Unit = {}
     val portA = new i8255.Port:
       override def read: Int =
@@ -234,9 +241,10 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
       cpuClockToWait = cpu.execute() - 1
     // i8253: 4.77Mhz / 4
     i8253CycleCounter -= 1
-    if i8253CycleCounter <= 0 then
-      i8253CycleCounter += i8253Cycles
+    if i8253CycleCounter == 0 then
+      i8253CycleCounter = i8253Cycles
       pit.timer.clock()
+      speaker.addSample(timer2OutValue && speakerDataEnabled)
     // DMA: same clock of 8088
     dma.dma.clock()
     // video card
@@ -248,6 +256,12 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
     fdc.fdc.clock(_cycles = 2)
     // HDC
     hdc.hdFdc.clock(_cycles = 2)
+    // Speaker
+    speakerCycles += 1
+    if speakerCycles >= SPEAKER_SAMPLE_CYCLES then
+      speakerCycles = 0
+      //println(s"SPEAKER OUT is timer2OutValue=$timer2OutValue speakerDataEnabled=$speakerDataEnabled")
+      speaker.setOut()
   end clock
 
 

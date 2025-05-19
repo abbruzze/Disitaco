@@ -360,6 +360,8 @@ class i8253 extends PCComponent:
             decrementCounter()
             if decrementCounter() == 1 then
               oddReload = true
+//        else
+//          setOut(low)
     end Mode3
 
     /*

@@ -7,6 +7,7 @@ import ucesoft.disitaco.ui.StoragePanel
 import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
 
 import java.awt.{BorderLayout, Dimension, FlowLayout}
+import java.io.File
 import java.nio.file.Paths
 import javax.swing.*
 
@@ -63,11 +64,14 @@ object TestRomDis:
     val cpu = mother.cpu
 
     storagePanel.setDiskette(2,2,new StoragePanel.StorageListener:
+      private var lastDir = new File("./")
       override def openImage(diskId: Int): Unit =
         val fc = new JFileChooser()
+        fc.setCurrentDirectory(lastDir)
         fc.showOpenDialog(frame) match
           case JFileChooser.APPROVE_OPTION =>
             val image = new FloppyDiskImage(fc.getSelectedFile.toString)
+            lastDir = fc.getSelectedFile.getParentFile
             mother.fdc.fdc.getDrives(diskId).insertDisk(image)
           case _ =>
       override def ejectImage(diskId: Int): Unit =
@@ -93,7 +97,7 @@ object TestRomDis:
         })
     }
 
-    val debugger = new Debugger(cpu,mother.videoCard,() => {},mother.videoCard,mother.dma.dma,mother.pit.timer,mother.keyboard,mother.fdc.fdc,mother.rtc.rtc)
+    val debugger = new Debugger(cpu,mother.videoCard,() => {},mother.videoCard,mother.dma.dma,mother.pit.timer,mother.keyboard,mother.fdc.fdc,mother.rtc.rtc,mother.speaker)
     val log = Logger.setLogger(debugger.log)
     mother.setLogger(log)
 
@@ -102,8 +106,8 @@ object TestRomDis:
     mem.registerOptionROM(0xD0000,glatick,"Glatick")
     val harddisk = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\IBM_XEBEC_5000059_1982.BIN""")) // IBM_XEBEC_62X0822_1985.BIN / IBM_XEBEC_5000059_1982
     mem.registerOptionROM(0xD4000,harddisk,"harddisk")
-    val hdDisk = new FixedDiskImage("""C:\Users\ealeame\Downloads\PCDOS200-EMPTY.img""")
-    val h1Disk = new FixedDiskImage("""C:\Users\ealeame\Downloads\PCDOS200-EMPTY_D.img""")
+    val hdDisk = new FixedDiskImage("""C:\Users\ealeame\OneDrive - Ericsson\Desktop\disitaco\H_C.img""")
+    val h1Disk = new FixedDiskImage("""C:\Users\ealeame\OneDrive - Ericsson\Desktop\disitaco\H_D.img""")
     for d <- mother.hdc.hdFdc.getDrives do
       d.setListener(storagePanel)
     mother.hdc.hdFdc.getDrives(0).insertDisk(hdDisk)

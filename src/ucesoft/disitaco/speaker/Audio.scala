@@ -12,4 +12,5 @@ trait Audio extends PCComponent:
   def getMasterVolume: Int
   def getLastPerformance: Int
   def available(): Int
-  def setOut(sample:Boolean): Unit
+  def addSample(sample:Boolean): Unit
+  def setOut(): Unit
