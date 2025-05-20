@@ -20,12 +20,13 @@ class i8253 extends PCComponent:
   private enum ReadWriteMode:
     case CounterLatchMode, LSB, MSB, LSB_MSB
 
-  private class Counter(val id: Int):
+  private class Counter(val counterID: Int):
     import ReadWriteMode.*
 
     private inline val low = false
     private inline val high = true
 
+    private var rwCounter = 0
     private var rCounter = 0
     private var controlWord = 0
     private var rwMode : ReadWriteMode = CounterLatchMode
@@ -42,16 +43,18 @@ class i8253 extends PCComponent:
     private var outListener = new CounterOutListener:
       override def outChanged(value: Boolean): Unit = {}
 
+    private final val MODES = Array(new Mode0,new Mode1, new Mode2, new Mode3, new Mode4, new Mode5)
+
     def getProperties: List[PCComponent.Property] =
       import PCComponent.Property
       val list = new ListBuffer[Property]
-      list += Property(s"Counter #$id counter",counter.toString)
-      list += Property(s"Counter #$id latch",latch.toString)
-      list += Property(s"Counter #$id f/f",rCounter.toString)
-      list += Property(s"Counter #$id rw mode",rwMode.toString)
-      list += Property(s"Counter #$id mode",mode.id.toString)
-      list += Property(s"Counter #$id gate",gate.toString)
-      list += Property(s"Counter #$id out",out.toString)
+      list += Property(s"Counter #$counterID counter",counter.toString)
+      list += Property(s"Counter #$counterID latch",latch.toString)
+      list += Property(s"Counter #$counterID f/f",rCounter.toString)
+      list += Property(s"Counter #$counterID rw mode",rwMode.toString)
+      list += Property(s"Counter #$counterID mode",mode.id.toString)
+      list += Property(s"Counter #$counterID gate",gate.toString)
+      list += Property(s"Counter #$counterID out",out.toString)
       list.toList
 
     def reset(): Unit =
@@ -128,15 +131,14 @@ class i8253 extends PCComponent:
       else
         controlWord = cw
         rwMode = ReadWriteMode.fromOrdinal((cw >> 4) & 3)
-        mode = (cw >> 1) & 7 match
-          case 0 => new Mode0
-          case 1 => new Mode1
-          case 2|6 => new Mode2
-          case 3|7 => new Mode3
-          case 4 => new Mode4
-          case 5 => new Mode5
-          case _ => mode // illegal value
-        log.info("Counter[%d] controlWord=%02X rwMode=%s mode=%s",id,controlWord,rwMode,mode.id)
+        val modeValue = (cw >> 1) & 7
+        if modeValue > 5 then
+          log.error("Counter[%d] controlWord=%02X invalid mode=%d",counterID,controlWord,modeValue)
+        else
+          mode = MODES(modeValue)
+          mode.init()
+
+        log.info("Counter[%d] controlWord=%02X rwMode=%s mode=%s",counterID,controlWord,rwMode,mode.id)
     end setControlWord
 
     def setCounterListener(cl:CounterOutListener): Unit = outListener = cl
@@ -174,21 +176,21 @@ class i8253 extends PCComponent:
         outListener.outChanged(out)
 
     private abstract class Mode(val id:Int):
-      private var rwCounter = 0
-
       def gateRisingEdge(): Unit = {}
       def gateFallingEdge(): Unit = {}
+
+      def init(): Unit = {}
 
       final def writeCounter(value:Int): Unit =
         rwMode match
           case LSB =>
             latch = (latch & 0xFF00) | (value & 0xFF)
             newCounterWritten()
-            log.info("Counter[%d] set counter to %04X",id,latch)
+            log.info("Counter[%d](mode=%d) set(LSB) counter to %04X",counterID,id,latch)
           case MSB =>
             latch = (latch & 0x00FF) | (value & 0xFF) << 8
             newCounterWritten()
-            log.info("Counter[%d] set counter to %04X",id,latch)
+            log.info("Counter[%d](mode=%d) set(MSB) counter to %04X",counterID,id,latch)
           case LSB_MSB =>
             rwCounter match
               case 0 =>
@@ -197,8 +199,8 @@ class i8253 extends PCComponent:
               case 1 =>
                 latch = (latch & 0x00FF) | (value & 0xFF) << 8
                 newCounterWritten()
-                log.info("Counter[%d] set counter to %04X", id, latch)
-            rwCounter = (rwCounter + 1) & 1
+                log.info("Counter[%d](mode=%d) set(LSB_MSB) counter to %04X",counterID,id,latch)
+            rwCounter ^= 1
           case _ =>
       end writeCounter
 
@@ -216,7 +218,8 @@ class i8253 extends PCComponent:
     private class Mode0 extends Mode(0):
       private var loadCounterOnNextClock = false
 
-      newCounterWritten()
+      override def init(): Unit =
+        newCounterWritten()
 
       // Writing the first byte does not disable counting. OUT is set low immediately (no clock pulse required).
       override final protected def firstByteOfNewCounterWritten(): Unit = setOut(low)
@@ -255,7 +258,10 @@ class i8253 extends PCComponent:
       private var outGoLowOnNextClock = false
       private var counting = false
 
-      setOut(high)
+      override def init(): Unit =
+        setOut(high)
+        outGoLowOnNextClock = false
+        counting = false
 
       override final def gateRisingEdge(): Unit =
         loadCounterFromLatch()
@@ -288,7 +294,8 @@ class i8253 extends PCComponent:
     GATE = 1 enables counting; GATE = 0 disables counting.
     */
     private class Mode2 extends Mode(2):
-      setOut(high)
+      override def init(): Unit =
+        setOut(high)
 
       override def newCounterWritten(): Unit =
         loadCounterFromLatch()
@@ -323,15 +330,21 @@ class i8253 extends PCComponent:
       private var evenCount = false
       private var oddReload = false
 
-      setOut(high)
+      override def init(): Unit =
+        setOut(high)
+        evenCount = false
+        oddReload = false
 
       override final def gateRisingEdge(): Unit =
         loadCounterFromLatch()
+        evenCount = (counter & 1) == 0
+        oddReload = false
       override final def gateFallingEdge(): Unit =
-        if out == low then setOut(high)
+        /*if out == low then*/ setOut(high)
       override def newCounterWritten(): Unit =
         loadCounterFromLatch()
         evenCount = (counter & 1) == 0
+        oddReload = false
 
       /*
       Odd counts: OUT is initially high. The initial count
@@ -376,7 +389,11 @@ class i8253 extends PCComponent:
       private var terminalCounter = 0
       private var counting = false
 
-      newCounterWritten()
+      override def init(): Unit =
+        loadCounterOnNextClock = false
+        terminalCounter = 0
+        counting = false
+        newCounterWritten()
 
       // After the Control Word and initial count are written to a Counter, the initial count will be loaded on the next CLK pulse.
       override final protected def newCounterWritten(): Unit =
@@ -426,7 +443,11 @@ class i8253 extends PCComponent:
       private var terminalCounter = 0
       private var counting = false
 
-      setOut(high)
+      override def init(): Unit =
+        setOut(high)
+        startCountingOnNextClock = false
+        terminalCounter = 0
+        counting = false
 
       override final def gateRisingEdge(): Unit =
         startCountingOnNextClock = true
