@@ -9,7 +9,7 @@ import ucesoft.disitaco.io.IODevice
  *         Created on 04/04/2025 16:34  
  */
 object VideoCard:
-  case class CardInfo(ram:Array[Byte],mainMemoryOffset:Int,dipSwitch54:Int)
+  case class CardInfo(ram:Array[Byte],mainMemoryOffset:Int,dipSwitch54:Int,supportColors:Boolean)
 
   trait VideoCardListener:
     def modeChanged(mode:String,screenWidth:Int,screenHeight:Int): Unit

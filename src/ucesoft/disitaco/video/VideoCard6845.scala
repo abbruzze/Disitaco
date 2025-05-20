@@ -20,7 +20,7 @@ abstract class VideoCard6845 extends VideoCard:
     case TEXT, BITMAP
   end DrawMode
 
-  private inline val debug = true
+  private inline val debug = false
   private var frameCount = 0
 
   protected var address_reg = 0

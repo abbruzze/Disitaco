@@ -130,7 +130,7 @@ class CGA extends VideoCard6845:
   // ========================= Card Info ======================================
   //  In 320x200 and 40x25 text mode (which has the equivalent resolution), a 7.16MHz dot clock is used
   override def getPixelClockFrequencyHz: Double = if _40ColMode || resolution == MEDIUM_RES then 14_318_000 >> 1 else 14_318_000
-  override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(ram, mainMemoryOffset = 0xB_8000,dipSwitch54 = 0b10)
+  override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(ram, mainMemoryOffset = 0xB_8000,dipSwitch54 = 0b10,supportColors = true)
   override def getPreferredSize: Dimension = new Dimension(912,262)
   // ========================= Drawing ========================================
   private def fetchGFXAndAttrs(): Unit =

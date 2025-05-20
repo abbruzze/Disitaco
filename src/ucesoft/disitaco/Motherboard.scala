@@ -134,7 +134,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
 
   override protected def init(): Unit =
     wiring()
-    speaker.setBufferInMillis(10)
+    speaker.setBufferInMillis(5)
     speaker.start()
     speaker.turn(on = true)
   end init

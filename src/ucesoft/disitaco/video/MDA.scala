@@ -52,7 +52,7 @@ class MDA extends VideoCard6845:
   )
   // ========================= Card Info ======================================
   override def getPixelClockFrequencyHz: Double = 16_257_000
-  override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(ram,mainMemoryOffset = 0xB_0000,dipSwitch54 = 0b11)
+  override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(ram,mainMemoryOffset = 0xB_0000,dipSwitch54 = 0b11,supportColors = false)
   override def getPreferredSize: Dimension = new Dimension(882,370)
   // ========================= Drawing ========================================
   private def fetchGFXAndAttrs(): Unit =

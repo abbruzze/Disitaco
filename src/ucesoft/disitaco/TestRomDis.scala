@@ -2,6 +2,7 @@ package ucesoft.disitaco
 
 import ucesoft.disitaco.cpu.Registers
 import ucesoft.disitaco.debugger.Debugger
+import ucesoft.disitaco.io.LotechEMS
 import ucesoft.disitaco.storage.{DiskImage, Fast13IntHandler, FixedDiskImage, FloppyDiskImage}
 import ucesoft.disitaco.ui.StoragePanel
 import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
@@ -112,6 +113,11 @@ object TestRomDis:
       d.setListener(storagePanel)
     mother.hdc.hdFdc.getDrives(0).insertDisk(hdDisk)
     mother.hdc.hdFdc.getDrives(1).insertDisk(h1Disk)
+
+    // EMS
+    val ems = new LotechEMS(0x260)
+    ems.register(mother.ioHandler)
+    mem.registerEMSHandler(0xE,ems)
 //    val basic = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\basic_1.10.rom"""))
 //    mem.registerOptionROM(0xF6000,basic,"Basic 1.10")
 

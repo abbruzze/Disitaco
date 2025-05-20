@@ -132,7 +132,7 @@ class Speaker(val sampleRate:Int) extends Audio with Runnable:
           else
             sourceLine.write(samples, 0, available)
             lastPerformance = (available / samples.length * 100.0).toInt
-            //println(s"Perf $lastPerformance samples=${samples.length} available=$available")
+            //if lastPerformance != 100 then println(s"Perf $lastPerformance samples=${samples.length} available=$available")
 
         sourceLine.drain()
         sourceLine.close()
