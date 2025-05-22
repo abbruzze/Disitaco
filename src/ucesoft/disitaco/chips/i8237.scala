@@ -242,7 +242,6 @@ class i8237(val mem:Memory) extends PCComponent:
     if addressFlipFlop then
       channels(channel).baseAddressRegister = (channels(channel).baseAddressRegister & 0x00FF) | (address & 0xFF) << 8
       channels(channel).currentAddressRegister = (channels(channel).currentAddressRegister & 0x00FF) | (address & 0xFF) << 8
-      if channel == 3 then println(s"DMA #2 address set to ${(channels(channel).pageAddress << 16 | channels(channel).currentAddressRegister).toHexString}")
     else
       channels(channel).baseAddressRegister = (channels(channel).baseAddressRegister & 0xFF00) | (address & 0xFF)
       channels(channel).currentAddressRegister = (channels(channel).currentAddressRegister & 0xFF00) | (address & 0xFF)
@@ -253,7 +252,6 @@ class i8237(val mem:Memory) extends PCComponent:
     if addressFlipFlop then
       channels(channel).baseWordCountRegister = (channels(channel).baseWordCountRegister & 0x00FF) | (count & 0xFF) << 8
       channels(channel).currentWordCountRegister = (channels(channel).currentWordCountRegister & 0x00FF) | (count & 0xFF) << 8
-      if channel == 3 then println(s"DMA #2 counter set to ${channels(channel).currentWordCountRegister}")
     else
       channels(channel).baseWordCountRegister = (channels(channel).baseWordCountRegister & 0xFF00) | (count & 0xFF)
       channels(channel).currentWordCountRegister = (channels(channel).currentWordCountRegister & 0xFF00) | (count & 0xFF)
