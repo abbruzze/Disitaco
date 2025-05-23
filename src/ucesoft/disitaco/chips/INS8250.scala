@@ -11,7 +11,7 @@ object INS8250:
     def dtr(on:Boolean): Unit = {}
     def rts(on:Boolean): Unit = {}
     def setTXByte(byte:Int): Unit = {}
-    def tick(byteLen:Int): Unit = {}
+    def checkRXByte(): Unit = {}
   trait SerialMaster:
     def cts(on:Boolean): Unit = {}
     def dsr(on: Boolean): Unit = {}
@@ -109,7 +109,7 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
 
   private inline val SERIAL_CLOCK = 1_843_200
 
-  private inline val EMPTY_BUFFER = 1
+  private inline val EMPTY_BUFFER = -1
 
   // registers
   private inline val REG_RECEIVER_BUFFER      = 0 // read only
@@ -129,6 +129,8 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
   private inline val INT_REC_DATA         = 0b100
   private inline val INT_TX_EMPTY         = 0b010
   private inline val INT_MODEM_STATUS     = 0b000
+
+  private inline val OUT2_INT_ENABLE      = 0x8
 
   private inline val INT_MASK_REC_LINE_STATUS = 4
   private inline val INT_MASK_REC_DATA        = 1
@@ -182,7 +184,7 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
   private var bitCycles = 0
   private var bitCounterCycles = 0
   private var bitCount = 0
-  private var byteLen = 0
+  private var byteBitLen = 0
 
   reset()
 
@@ -256,10 +258,11 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
           registers(REG_LINE_STATUS) &= ~LINE_STATUS_DATA_READY
 
           // clear INT Received Data Available
-          if (activeInterrupts & INT_MASK_REC_DATA) != 0 then
-            checkIRQ(disableMask = INT_MASK_REC_DATA)
+          checkIRQ(disableMask = INT_MASK_REC_DATA)
+
           val data = registers(REG_RECEIVER_BUFFER)
           registers(REG_RECEIVER_BUFFER) = EMPTY_BUFFER
+          //println(s"SERIAL READ: $data")
           data
       case 1 => // 3F9
         if dlab then
@@ -276,8 +279,7 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
         else INT_NONE
 
         // clear INT Transmitter Holding Register Empty
-        if (activeInterrupts & INT_MASK_TX_EMPTY) != 0 then
-          checkIRQ(disableMask = INT_MASK_TX_EMPTY)
+        checkIRQ(disableMask = INT_MASK_TX_EMPTY)
 
         registers(REG_INTERRUPT_IDENTIFY)
       case 3 => // 3FB
@@ -316,8 +318,7 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
           updateBaud()
         else
           // clear INT Transmitter Holding Register Empty
-          if (activeInterrupts & INT_TX_EMPTY) != 0 then
-            checkIRQ(disableMask = INT_TX_EMPTY)
+          checkIRQ(disableMask = INT_TX_EMPTY)
           registers(REG_TRANSMITTER_BUFFER) = value & 0xFF
           registers(REG_LINE_STATUS) &= ~LINE_STATUS_TX_EMPTY
       case 1 => // 3F9
@@ -325,19 +326,20 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
           registers(REG_DIVISOR_MSB) = value & 0xFF
           updateBaud()
         else
-          registers(REG_INTERRUPT_ENABLE) = value & 0xFF
+          registers(REG_INTERRUPT_ENABLE) = value & 0x0F
           checkIRQ()
       case 2 => // 3FA
         // read-only
       case 3 => // 3FB
         registers(REG_LINE_CONTROL) = value & 0xFF
         // start bit + data bits + stop bits + parity bit
-        byteLen = 1 + 5 + (registers(REG_LINE_CONTROL) & 3) + (registers(REG_LINE_CONTROL) & 4) + 1 + (if (registers(REG_LINE_CONTROL) & 8) != 0 then 1 else 0)
-        log.info("%s Byte len = %d",componentName,byteLen)
+        byteBitLen = 1 + 5 + (registers(REG_LINE_CONTROL) & 3) + (registers(REG_LINE_CONTROL) & 4) + 1 + (if (registers(REG_LINE_CONTROL) & 8) != 0 then 1 else 0)
+        log.info("%s Byte len = %d",componentName,byteBitLen)
       case 4 => // 3FC
         registers(REG_MODEM_CONTROL) = value & 0x1F
         setSignal(DTR,(value & 1) != 0)
         setSignal(RTS,(value & 2) != 0)
+        //println(s"SERIAL IN ENABLED: ${(value & OUT2_INT_ENABLE) != 0}")
       case 5 => // 3FD
         registers(REG_LINE_STATUS) = value & 0xBF | registers(REG_LINE_STATUS) & 0x40 // bit 6 is read-only
       case 6 => // 3FE
@@ -352,10 +354,13 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
     if enableMask != -1 then
       activeInterrupts |= enableMask
 
-    val irqActive = (activeInterrupts & registers(REG_INTERRUPT_ENABLE)) != 0
+    val irqActive = (activeInterrupts & registers(REG_INTERRUPT_ENABLE)) != 0 && (registers(REG_MODEM_CONTROL) & OUT2_INT_ENABLE) != 0
 
+    //println(s"SERIAL IRQ = $irqActive")
     irq(irqActive)
+    lastIRQ = irqActive
   end checkIRQ
+  private var lastIRQ = false
 
   private def checkLineStatusInterrupt(): Unit =
     if (registers(REG_LINE_STATUS) & (LINE_STATUS_OVERRUN|LINE_STATUS_PARITY_ERR)) != 0 then
@@ -375,20 +380,24 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
     val divisor = registers(REG_DIVISOR_MSB) << 8 | registers(REG_DIVISOR_LSB)
     if divisor != 0 then
       val baudRate = SERIAL_CLOCK / (divisor << 4)
-      bitCycles = divisor << 4
+      bitCycles = divisor
       bitCounterCycles = 0
       log.info("%s Baud rate = %d (divisor=%d) bitCycles=%d",componentName,baudRate,divisor,bitCycles)
   end updateBaud
 
   override def setRXByte(byte:Int): Unit =
     log.info("%s received byte from device %s = %02X",componentName,device.name,byte)
+    printf("%s received byte from device %s = %02X\n",componentName,device.name,byte)
 
     if registers(REG_RECEIVER_BUFFER) != EMPTY_BUFFER then
       log.info("%s overrun condition",componentName)
+      printf("%s overrun condition lastIRQ=%b\n",componentName,lastIRQ)
       registers(REG_LINE_STATUS) |= LINE_STATUS_OVERRUN
       checkLineStatusInterrupt()
-    registers(REG_RECEIVER_BUFFER) = byte
-    checkIRQ(enableMask = INT_MASK_REC_DATA)
+    else
+      registers(REG_LINE_STATUS) |= LINE_STATUS_DATA_READY
+      registers(REG_RECEIVER_BUFFER) = byte
+      checkIRQ(enableMask = INT_MASK_REC_DATA)
   end setRXByte
 
   final def clock(): Unit =
@@ -399,8 +408,6 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
   end clock
 
   private def tick(): Unit =
-    device.tick(byteLen)
-
     if registers(REG_TRANSMITTER_BUFFER) != EMPTY_BUFFER && txShiftRegister == EMPTY_BUFFER then
       txShiftRegister = registers(REG_TRANSMITTER_BUFFER)
       registers(REG_TRANSMITTER_BUFFER) = EMPTY_BUFFER
@@ -409,17 +416,19 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
       checkIRQ(enableMask = INT_MASK_TX_EMPTY)
     end if
 
-    if txShiftRegister != EMPTY_BUFFER then
-      bitCounterCycles += 1
-      if bitCounterCycles == bitCycles then
-        bitCounterCycles = 0
-        bitCount += 1
-        if bitCount == byteLen then
-          bitCount = 0
+    bitCounterCycles += 1
+    if bitCounterCycles >= bitCycles then
+      bitCounterCycles = 0
+      bitCount += 1
+      if bitCount >= byteBitLen then
+        bitCount = 0
+        if txShiftRegister != EMPTY_BUFFER then
           log.info("%s byte sent to device %s = %02X",componentName,device.name,txShiftRegister)
           device.setTXByte(txShiftRegister)
           txShiftRegister = EMPTY_BUFFER
           registers(REG_LINE_STATUS) |= LINE_STATUS_TX_SH_EMPTY
+
+        device.checkRXByte()
   end tick
 
 

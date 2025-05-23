@@ -4,7 +4,7 @@ import ucesoft.disitaco.PCComponent
 import ucesoft.disitaco.chips.INS8250
 
 import java.awt.event.{MouseEvent, MouseListener, MouseMotionListener}
-import javax.swing.SwingUtilities
+import javax.swing.{JComponent, SwingUtilities}
 import scala.collection.mutable
 import scala.compiletime.uninitialized
 
@@ -12,51 +12,52 @@ import scala.compiletime.uninitialized
  * @author Alessandro Abbruzzetti
  *         Created on 22/05/2025 20:01  
  */
-class SerialMouse extends PCComponent with INS8250.SerialDevice with MouseListener with MouseMotionListener:
+class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PCComponent with INS8250.SerialDevice with MouseListener with MouseMotionListener:
   override protected val componentName = "SerialMouse"
   override val name = "Serial Mouse"
 
   private var master : INS8250.SerialMaster = uninitialized
-  private var bitCount = 0
-  private var sending = false
   private val pendingBytes = new mutable.Queue[Int]()
   private var lastMouseEvent : MouseEvent = uninitialized
   private var RTS = false
   private var DTR = false
 
+  def enable(enabled:Boolean): Unit =
+    target.removeMouseListener(this)
+    target.removeMouseMotionListener(this)
+    if enabled then
+      target.addMouseListener(this)
+      target.addMouseMotionListener(this)
+
   override protected def reset(): Unit =
-    bitCount = 0
-    sending = false
     pendingBytes.clear()
 
   override def setMaster(master: INS8250.SerialMaster): Unit =
     this.master = master
 
-  override def dtr(on: Boolean): Unit =
-    if on then
+  private def checkMouseOn(): Unit =
+    if DTR && RTS then
       sendByte('M'.toInt)
+      if logitech3Buttons then
+        sendByte('Z'.toInt)
+
+  override def dtr(on: Boolean): Unit =
+    if on then master.dsr(on = true)
     DTR = on
+    checkMouseOn()
 
   override def rts(on: Boolean): Unit =
     if on then master.cts(on = true)
     RTS = on
-    if !RTS then // it should be 100ms...
-      reset()
+    checkMouseOn()
 
   private def sendByte(byte:Int): Unit =
-    if RTS && DTR then
-      sending = true
-      bitCount = 0
-      pendingBytes.enqueue(byte)
+    pendingBytes.enqueue(byte)
 
-  override def tick(byteLen: Int): Unit =
-    if sending then
-      bitCount += 1
-      if bitCount == byteLen then
-        bitCount = 0
-        master.setRXByte(pendingBytes.dequeue())
-        sending = pendingBytes.nonEmpty
-  end tick
+  override def checkRXByte(): Unit =
+    if pendingBytes.nonEmpty then
+      master.setRXByte(pendingBytes.dequeue())
+  end checkRXByte
 
   private def getDeltaXY(e: MouseEvent): Int =
     if lastMouseEvent == null then
@@ -87,17 +88,22 @@ class SerialMouse extends PCComponent with INS8250.SerialDevice with MouseListen
     Y7-Y0 movement in Y direction since last packet (signed byte)
   */
   private def makeEvent(lbPressed:Boolean,rbPressed:Boolean,cbPressed:Boolean,e:MouseEvent): Unit =
-    val deltaXY = getDeltaXY(e)
-    val x = deltaXY & 0xFF
-    val y = (deltaXY >> 8) & 0xFF
-    val lb = if lbPressed then 0x20 else 0
-    val rb = if rbPressed then 0x10 else 0
-    val byte1 = 0x40 | lb | rb | (y >> 6) & 3 | (x >> 6) & 3
-    val byte2 = x & 0x3F
-    val byte3 = y & 0x3F
-    sendByte(byte1)
-    sendByte(byte2)
-    sendByte(byte3)
+    if DTR && RTS then
+      val deltaXY = getDeltaXY(e)
+      val x = deltaXY & 0xFF
+      val y = (deltaXY >> 8) & 0xFF
+      val lb = if lbPressed then 0x20 else 0
+      val rb = if rbPressed then 0x10 else 0
+      val byte1 = 0x40 | lb | rb | (y & 0xC0) >> 4 | (x >> 6) & 3
+      val byte2 = x & 0x3F
+      val byte3 = y & 0x3F
+      sendByte(byte1)
+      sendByte(byte2)
+      sendByte(byte3)
+      if logitech3Buttons then
+        val mb = if cbPressed then 0x20 else 0
+        val byte4 = mb
+        sendByte(byte4)
   end makeEvent
 
   override def mouseClicked(e: MouseEvent): Unit = {}
