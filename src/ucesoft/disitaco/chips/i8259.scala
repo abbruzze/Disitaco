@@ -3,6 +3,8 @@ package ucesoft.disitaco.chips
 import ucesoft.disitaco.PCComponent
 import ucesoft.disitaco.cpu.i8088
 
+import javax.swing.ImageIcon
+
 object i8259:
   trait INTHandler:
     def int(enabled:Boolean): Unit
@@ -12,6 +14,7 @@ object i8259:
  *         Created on 19/03/2025 14:12  
  */
 class i8259 extends PCComponent with i8088.IntrAck:
+  override protected val icon = new ImageIcon(getClass.getResource("/resources/trace/interrupt.png"))
   override val componentName = "8259"
   import i8259.*
   private enum Mode:
@@ -61,6 +64,20 @@ class i8259 extends PCComponent with i8088.IntrAck:
   private var INTR = false
 
   final def setIntHandler(ih:INTHandler): Unit = intHandler = ih
+
+  override def getProperties: List[PCComponent.Property] =
+    import PCComponent.Property
+    List(
+      Property("State",state.toString),
+      Property("IRQ levels",irqLevels.toString),
+      Property("irr",irr.toString),
+      Property("isr",isr.toString),
+      Property("imr",imr.toString),
+      Property("Mode",mode.toString),
+      Property("Edge sensed",edgeSensed.toString),
+      Property("Auto EOI",autoEOI.toString),
+      Property("IRQ signal",INTR.toString),
+    )
 
   override protected def reset(): Unit =
     irqLevels = 0
