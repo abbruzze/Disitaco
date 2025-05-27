@@ -3,6 +3,7 @@ package ucesoft.disitaco
 import ucesoft.disitaco.cpu.Registers
 import ucesoft.disitaco.debugger.Debugger
 import ucesoft.disitaco.io.LotechEMS
+import ucesoft.disitaco.mouse.SerialMouse
 import ucesoft.disitaco.storage.{DiskImage, Fast13IntHandler, FixedDiskImage, FloppyDiskImage}
 import ucesoft.disitaco.ui.StoragePanel
 import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
@@ -91,22 +92,26 @@ object TestRomDis:
       case MessageBus.VideoModeChanged(_, mode, w, h) =>
         SwingUtilities.invokeLater(() => {
           displayLabel.setText(s"$mode $w x $h")
+          val zoomX = mother.videoCard.getPreferredZoomX
+          val zoomY = mother.videoCard.getPreferredZoomY
           displayLabel.invalidate()
           if h > 100 then
-            display.setPreferredSize(new Dimension(w,h * 2))
+            display.setPreferredSize(new Dimension((w * zoomX).toInt,(h * zoomY).toInt))
+            MessageBus.send(MessageBus.DisplaySizeChanged(this,zoomX,zoomY))
             frame.pack()
         })
+      case _ =>
     }
 
-    val debugger = new Debugger(cpu,mother.videoCard,() => {},mother.videoCard,mother.dma.dma,mother.pit.timer,mother.keyboard,mother.fdc.fdc,mother.rtc.rtc,mother.speaker)
+    val debugger = new Debugger(cpu,mother.videoCard,() => {},mother.pic.pic,mother.videoCard,mother.dma.dma,mother.pit.timer,mother.keyboard,mother.fdc.fdc,mother.rtc.rtc,mother.speaker,mother.com1.ins8250,mother.com2.ins8250)
     val log = Logger.setLogger(debugger.log)
     mother.setLogger(log)
 
     mem.loadROM(rom)
     val glatick = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\GLaTICK_0.8.5_AT.ROM"""))
-    mem.registerOptionROM(0xD0000,glatick,"Glatick")
+    mem.registerOptionROM(0xD2000,glatick,"Glatick")
     val harddisk = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\IBM_XEBEC_5000059_1982.BIN""")) // IBM_XEBEC_62X0822_1985.BIN / IBM_XEBEC_5000059_1982
-    mem.registerOptionROM(0xD4000,harddisk,"harddisk")
+    mem.registerOptionROM(0xD0000,harddisk,"harddisk")
     val hdDisk = new FixedDiskImage("""C:\Users\ealeame\OneDrive - Ericsson\Desktop\disitaco\H_C.img""")
     val h1Disk = new FixedDiskImage("""C:\Users\ealeame\OneDrive - Ericsson\Desktop\disitaco\H_D.img""")
     for d <- mother.hdc.hdFdc.getDrives do
@@ -121,11 +126,18 @@ object TestRomDis:
 //    val basic = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\basic_1.10.rom"""))
 //    mem.registerOptionROM(0xF6000,basic,"Basic 1.10")
 
+    // Mouse
+    val mouse = new SerialMouse(display,logitech3Buttons = true)
+    mouse.enable(enabled = true)
+    mouse.setScaleXY(0.5,0.5)
+    mother.com1.ins8250.setDevice(mouse)
+
     mother.videoCard.setClippingOn(on = true)
 
     display.addKeyListener(mother.keyboard)
     display.setFocusable(true)
 
+    // Fast13
     mother.cpu.setInterruptHandler(0x13,new Fast13IntHandler(mother))
 
     mother.initComponent()

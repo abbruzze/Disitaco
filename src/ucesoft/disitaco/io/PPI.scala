@@ -10,13 +10,16 @@ class PPI extends IODevice:
   override protected val componentName = "8255 PPI"
   final val ppi = new i8255
 
-  override def register(ioHandler: IOHandler): Unit = ioHandler.registerDevice(0x60 to 0x63,this)
+  override def register(ioHandler: IOHandler): Unit = ioHandler.registerDevice(0x60 to 0x64,this)
 
   add(ppi)
 
   override final def in8(port: Int): Int =
     port match
-      case 0x60 => ppi.read(0)
+      // Windows 2.x will not work if 0x64 is not configured as an alias of 0x60
+      // Also noteworthy for emulation is that, on original IBM PC hardware, I/O ports 60-63h decode only the low 2 bits across 60h-7Fh.
+      // Port 64h is an alias for port 60h on the original IBM PC hardware.
+      case 0x60|0x64 => ppi.read(0)
       case 0x61 => ppi.read(1)
       case 0x62 => ppi.read(2)
       case _ =>

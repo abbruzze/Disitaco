@@ -37,7 +37,8 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   final val hdc = new HardDiskFDC(dma.dma,3,pic.pic.setIRQ(5,_),diskIDOffset = 2,numberOfHDDrives = hardDisks) // hdc sends interrupt to line 5
   final val rtc = new RTC(clock)
   final val speaker = new Speaker(SPEAKER_AUDIO_RATE)
-  final val com1 = new Serial(0x3F8,DEFAULT_CLOCK_FREQ,pic.pic.setIRQ(4,_))
+  final val com1 = new Serial(comIndex = 1,0x3F8,DEFAULT_CLOCK_FREQ,pic.pic.setIRQ(4,_))
+  final val com2 = new Serial(comIndex = 2,0x2F8,DEFAULT_CLOCK_FREQ,pic.pic.setIRQ(3,_))
 
   private final val nmiMaskDevice = new IODevice:
     override protected val componentName = "NMI Mask"
@@ -49,7 +50,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
       nmiEnabled = (value & 0x80) != 0
       log.info("NMI mask enabled: %b",nmiEnabled)
 
-  private val ioDevices : Array[IODevice] = Array(dma,pic,pit,ppi,nmiMaskDevice,videoCard,fdc,rtc,hdc,com1)
+  private val ioDevices : Array[IODevice] = Array(dma,pic,pit,ppi,nmiMaskDevice,videoCard,fdc,rtc,hdc,com1,com2)
 
   private var timer2OutValue = false
   private var speakerDataEnabled = false
@@ -132,6 +133,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   add(rtc)
   add(speaker)
   add(com1)
+  add(com2)
   ioDevices.foreach(add)
 
   override protected def init(): Unit =
@@ -265,7 +267,8 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
       //println(s"SPEAKER OUT is timer2OutValue=$timer2OutValue speakerDataEnabled=$speakerDataEnabled")
       speaker.setOut()
     // serial
-    com1.ins8250.clock()  
+    com1.ins8250.clock()
+    com2.ins8250.clock()
   end clock
 
 

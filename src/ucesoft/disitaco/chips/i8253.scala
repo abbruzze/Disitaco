@@ -131,6 +131,7 @@ class i8253 extends PCComponent:
       else
         controlWord = cw
         rwMode = ReadWriteMode.fromOrdinal((cw >> 4) & 3)
+        rwCounter = 0
         val modeValue = (cw >> 1) & 7
         if modeValue > 5 then
           log.error("Counter[%d] controlWord=%02X invalid mode=%d",counterID,controlWord,modeValue)

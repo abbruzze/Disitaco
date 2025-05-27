@@ -446,6 +446,8 @@ abstract class VideoCard6845 extends VideoCard:
   // Abstract methods =========================================
   def getPixelClockFrequencyHz: Double
   def getPreferredSize: Dimension
+  def getPreferredZoomX: Double = 1.0
+  def getPreferredZoomY: Double = 1.0
 
   protected def getCharWidth: Int
 

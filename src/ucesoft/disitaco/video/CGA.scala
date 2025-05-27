@@ -10,6 +10,7 @@ import java.awt.Dimension
  *         Created on 04/04/2025 10:54  
  */
 class CGA extends VideoCard6845:
+  override protected val componentName = "CGA"
   private enum Resolution:
     case LOW_RES, MEDIUM_RES, HIGH_RES
 
@@ -132,6 +133,7 @@ class CGA extends VideoCard6845:
   override def getPixelClockFrequencyHz: Double = if _40ColMode || resolution == MEDIUM_RES then 14_318_000 >> 1 else 14_318_000
   override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(ram, mainMemoryOffset = 0xB_8000,dipSwitch54 = 0b10,supportColors = true)
   override def getPreferredSize: Dimension = new Dimension(912,262)
+  override def getPreferredZoomY: Double = 2.0
   // ========================= Drawing ========================================
   private def fetchGFXAndAttrs(): Unit =
     val ram = this.ram
@@ -394,7 +396,7 @@ class CGA extends VideoCard6845:
         _40ColMode = mode == 0b0100 || mode == 0b0000
         updateGeometry()
         log.info("CGA mode control register: %02X [video enabled=%b] resolution=%s", value, (value & 0x08) == 0x08,resolution)
-        println(s"resolution=$resolution mode=$mode")
+        //println(s"resolution=$resolution mode=$mode")
       case 0x3D9 => // Color Select Register
         /*
          7 Not used

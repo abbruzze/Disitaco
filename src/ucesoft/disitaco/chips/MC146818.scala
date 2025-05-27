@@ -53,6 +53,10 @@ class MC146818(clock:Clock) extends PCComponent with Clock.Clockable:
       Property("Month",ram(MONTH).toString),
       Property("Day",ram(DAY_OF_MONTH).toString),
       Property("Day of week",ram(DAY_OF_WEEK).toString),
+      Property("Status A",ram(STATUS_A).toString),
+      Property("Status B",ram(STATUS_B).toString),
+      Property("Status C",ram(STATUS_C).toString),
+      Property("Status D",ram(STATUS_D).toString),
     )
 
   override protected def reset(): Unit =
@@ -126,6 +130,7 @@ class MC146818(clock:Clock) extends PCComponent with Clock.Clockable:
   private def writeTimeRegister(reg:Int,value: Int): Unit =
     val bcd = (ram(STATUS_B) & 0x04) == 0
     ram(reg) = fromBCD(value,bcd)
+    writeTime()
     log.info("%s write time reg %d = %02X (%02X) BCD=%b",componentName,reg,ram(reg),value,bcd)
     printf("%s write time reg %d = %02X (%02X) BCD=%b\n",componentName,reg,ram(reg),value,bcd)
 

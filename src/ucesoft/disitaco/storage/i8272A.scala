@@ -331,7 +331,7 @@ class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponen
         val bytes = cmd.getCMDBytes
         val drive = drives(selectedDrive)
         log.info("%s executing %s on track %d with %s",componentName,cmd.label,drive.getCurrentTrack,bytes.mkString("[",",","]"))
-        printf("%s executing %s on track %d with %s\n",componentName,cmd.label,drive.getCurrentTrack,bytes.mkString("[",",","]"))
+        //printf("%s executing %s on track %d with %s\n",componentName,cmd.label,drive.getCurrentTrack,bytes.mkString("[",",","]"))
         val n = bytes(1)
         val sc = bytes(2)
         if !drive.isMotorOn then
@@ -371,7 +371,7 @@ class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponen
         else
           cmd.setWriteReady(4, params => {
             log.info("%s formatting params received [%d]: %s",componentName,cmd.getTotalSectorWrite,params.mkString("[",",","]"))
-            printf("%s formatting params received [%d]: %s\n",componentName,cmd.getTotalSectorWrite,params.mkString("[",",","]"))
+            //printf("%s formatting params received [%d]: %s\n",componentName,cmd.getTotalSectorWrite,params.mkString("[",",","]"))
             // format sector
             val formattedSector = Array.fill[Byte](DiskImage.SECTOR_SIZE)(bytes(4).toByte)
             drives(selectedDrive).formatTrackSector(head = params(1),sector = params(2),data = formattedSector)
@@ -382,7 +382,7 @@ class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponen
       case 4 => // completed
         val drive = drives(selectedDrive)
         log.info("%s formatting of track %d/%d completed",componentName,drive.getCurrentTrack,drive.getHead)
-        printf("%s formatting of track %d/%d completed\n",componentName,drive.getCurrentTrack,drive.getHead)
+        //printf("%s formatting of track %d/%d completed\n",componentName,drive.getCurrentTrack,drive.getHead)
         val st0 = makeST0(HD = drive.getHead,US = selectedDrive)
         val st1 = makeST1()
         val st2 = makeST2()
@@ -533,10 +533,10 @@ class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponen
 
           if cmd.id == CMD_READ_DATA_ID then
             log.info("%s reading data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
-            printf("%s reading data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d\n",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
+            //printf("%s reading data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d\n",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
           else
             log.info("%s writing data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
-            printf("%s writing data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d\n",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
+            //printf("%s writing data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d\n",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
 
           drive.setHead(head)
           drive.moveOnTrack(track = track)
@@ -564,7 +564,7 @@ class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponen
           if drive.getSector == cmdBytes(3) && cmd.dataQueueSize == 0 then // target sector ?
             val bytes = drive.readSector()
             if cmdBytes(4) == 0 then
-              println(s"Read sector with custom sector size ${cmdBytes(7)}")
+              //println(s"Read sector with custom sector size ${cmdBytes(7)}")
               val firstBytes = bytes.toArray.take(cmdBytes(7))
               cmd.dataReadEnqueue(firstBytes)
             else
@@ -583,10 +583,10 @@ class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponen
               case 0 => cmdBytes(7)
               case 2 => DiskImage.SECTOR_SIZE
               case _ =>
-                println(s"While writing sector size is not 2 nor 0: ${cmdBytes(4)}")
+                //println(s"While writing sector size is not 2 nor 0: ${cmdBytes(4)}")
                 DiskImage.SECTOR_SIZE
             cmd.setWriteReady(sectorSize,data => {
-              println(s"Writing data to sector ${drive.getSector} ...")
+              //println(s"Writing data to sector ${drive.getSector} ...")
               drive.writeSector(data)
               cmd.setWriteNotReady()
             })
@@ -597,10 +597,10 @@ class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponen
         val cmdBytes = cmd.getCMDBytes
         if cmd.id == CMD_READ_DATA_ID then
           log.info(s"%s %s completed [MT=${cmd.MT}]. Total sector read: %d",componentName,executingCommand.label,executingCommand.getTotalSectorRead)
-          printf(s"%s %s completed [MT=${cmd.MT}]. Total sector read: %d\n",componentName,executingCommand.label,executingCommand.getTotalSectorRead)
+          //printf(s"%s %s completed [MT=${cmd.MT}]. Total sector read: %d\n",componentName,executingCommand.label,executingCommand.getTotalSectorRead)
         else
           log.info(s"%s %s completed [MT=${cmd.MT}]. Total sector write: %d", componentName, executingCommand.label, executingCommand.getTotalSectorWrite)
-          printf(s"%s %s completed [MT=${cmd.MT}]. Total sector write: %d\n", componentName, executingCommand.label, executingCommand.getTotalSectorWrite)
+          //printf(s"%s %s completed [MT=${cmd.MT}]. Total sector write: %d\n", componentName, executingCommand.label, executingCommand.getTotalSectorWrite)
         val st0 = makeST0(HD = drive.getHead,US = selectedDrive)
         val st1 = makeST1()
         val st2 = makeST2()
@@ -779,7 +779,7 @@ class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponen
           0
       case _ =>
         log.warning("%s reading command data register in phase %s",componentName,state)
-        printf("%s reading command data register in phase %s\n",componentName,state)
+        //printf("%s reading command data register in phase %s\n",componentName,state)
         sys.exit(1)
         0
 

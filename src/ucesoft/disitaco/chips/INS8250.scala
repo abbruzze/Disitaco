@@ -92,10 +92,10 @@ object INS8250:
  * 6 RI
  * 7 RLSD
  */
-class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with INS8250.SerialMaster:
+class INS8250(comIndex:Int,masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with INS8250.SerialMaster:
   import INS8250.*
   override protected val icon = new ImageIcon(getClass.getResource("/resources/trace/serial.png"))
-  override val componentName = "INS8250"
+  override val componentName = s"COM$comIndex"
 
   private class NULL_DEVICE extends SerialDevice:
     override val name : String = "NULL"
@@ -186,6 +186,9 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
   private var bitCount = 0
   private var byteBitLen = 0
 
+  private var txByteCount = 0
+  private var rxByteCount = 0
+
   reset()
 
   override protected def reset(): Unit =
@@ -199,7 +202,35 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
     registers(REG_LINE_STATUS) = LINE_STATUS_TX_EMPTY | LINE_STATUS_TX_SH_EMPTY
     registers(REG_MODEM_STATUS) &= 0xF0
     activeInterrupts = 0
+
+    txByteCount = 0
+    rxByteCount = 0
     checkIRQ()
+  end reset
+
+  override def getProperties: List[PCComponent.Property] =
+    import PCComponent.Property
+    List(
+      Property("TX byte transmitted",txByteCount.toString),
+      Property("RX byte received",rxByteCount.toString),
+      Property("Baud",if bitCycles != 0 then (SERIAL_CLOCK / bitCycles).toString else "-"),
+      Property("RTS",signals(RTS).toString),
+      Property("CTS",signals(CTS).toString),
+      Property("DTR",signals(DTR).toString),
+      Property("DSR",signals(DSR).toString),
+      Property("RLSD",signals(RLSD).toString),
+      Property("RI",signals(RI).toString),
+      Property("Register receiver buffer",registers(REG_RECEIVER_BUFFER).toHexString),
+      Property("Register transmitter buffer",registers(REG_TRANSMITTER_BUFFER).toHexString),
+      Property("Register interrupt enable",registers(REG_INTERRUPT_ENABLE).toHexString),
+      Property("Register interrupt identify",registers(REG_INTERRUPT_IDENTIFY).toHexString),
+      Property("Register line control",registers(REG_LINE_CONTROL).toHexString),
+      Property("Register modem control",registers(REG_MODEM_CONTROL).toHexString),
+      Property("Register line status",registers(REG_LINE_STATUS).toHexString),
+      Property("Register modem status",registers(REG_MODEM_STATUS).toHexString),
+      Property("Register divisor LSB",registers(REG_DIVISOR_LSB).toHexString),
+      Property("Register divisor MSB",registers(REG_DIVISOR_MSB).toHexString),
+    )
 
   // =================== Signals handling ==========================
 
@@ -208,10 +239,16 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
       signals(signal) = on
       signal match
         case DTR =>
-          device.dtr(on)
+          if loopMode then
+            setSignal(DSR,on)
+          else
+            device.dtr(on)
           signalListener.dtrChanged(on)
         case RTS =>
-          device.rts(on)
+          if loopMode then
+            setSignal(CTS,on)
+          else
+            device.rts(on)
           signalListener.rtsChanged(on)
         // updates Delta flags on MODEM STATUS
         case CTS =>
@@ -246,6 +283,7 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
     signalListener = sl
 
   private inline def dlab: Boolean = (registers(REG_LINE_CONTROL) & 0x80) != 0
+  private inline def loopMode: Boolean = (registers(REG_MODEM_CONTROL) & 0x10) != 0
 
   def readRegister(address:Int): Int =
     log.info("%s reading register %d",componentName,address)
@@ -340,6 +378,7 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
         setSignal(DTR,(value & 1) != 0)
         setSignal(RTS,(value & 2) != 0)
         //println(s"SERIAL IN ENABLED: ${(value & OUT2_INT_ENABLE) != 0}")
+        log.info("%s LOOP enabled %b",componentName,loopMode)
       case 5 => // 3FD
         registers(REG_LINE_STATUS) = value & 0xBF | registers(REG_LINE_STATUS) & 0x40 // bit 6 is read-only
       case 6 => // 3FE
@@ -380,18 +419,20 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
     val divisor = registers(REG_DIVISOR_MSB) << 8 | registers(REG_DIVISOR_LSB)
     if divisor != 0 then
       val baudRate = SERIAL_CLOCK / (divisor << 4)
-      bitCycles = divisor
+      bitCycles = divisor << 4
       bitCounterCycles = 0
       log.info("%s Baud rate = %d (divisor=%d) bitCycles=%d",componentName,baudRate,divisor,bitCycles)
   end updateBaud
 
   override def setRXByte(byte:Int): Unit =
     log.info("%s received byte from device %s = %02X",componentName,device.name,byte)
-    printf("%s received byte from device %s = %02X\n",componentName,device.name,byte)
+    //printf("%s received byte from device %s = %02X\n",componentName,device.name,byte)
+
+    rxByteCount += 1
 
     if registers(REG_RECEIVER_BUFFER) != EMPTY_BUFFER then
       log.info("%s overrun condition",componentName)
-      printf("%s overrun condition lastIRQ=%b\n",componentName,lastIRQ)
+      //printf("%s overrun condition lastIRQ=%b\n",componentName,lastIRQ)
       registers(REG_LINE_STATUS) |= LINE_STATUS_OVERRUN
       checkLineStatusInterrupt()
     else
@@ -423,8 +464,13 @@ class INS8250(masterClockFreq:Int,irq: Boolean => Unit) extends PCComponent with
       if bitCount >= byteBitLen then
         bitCount = 0
         if txShiftRegister != EMPTY_BUFFER then
-          log.info("%s byte sent to device %s = %02X",componentName,device.name,txShiftRegister)
-          device.setTXByte(txShiftRegister)
+          if loopMode then
+            log.info("%s byte sent to loop %s = %02X",componentName,device.name,txShiftRegister)
+            setRXByte(txShiftRegister)
+          else
+            log.info("%s byte sent to device %s = %02X",componentName,device.name,txShiftRegister)
+            device.setTXByte(txShiftRegister)
+          txByteCount += 1
           txShiftRegister = EMPTY_BUFFER
           registers(REG_LINE_STATUS) |= LINE_STATUS_TX_SH_EMPTY
 

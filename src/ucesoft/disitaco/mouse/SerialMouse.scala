@@ -3,7 +3,7 @@ package ucesoft.disitaco.mouse
 import ucesoft.disitaco.PCComponent
 import ucesoft.disitaco.chips.INS8250
 
-import java.awt.event.{MouseEvent, MouseListener, MouseMotionListener}
+import java.awt.event.{MouseEvent, MouseListener, MouseMotionListener, MouseWheelEvent, MouseWheelListener}
 import javax.swing.{JComponent, SwingUtilities}
 import scala.collection.mutable
 import scala.compiletime.uninitialized
@@ -12,9 +12,11 @@ import scala.compiletime.uninitialized
  * @author Alessandro Abbruzzetti
  *         Created on 22/05/2025 20:01  
  */
-class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PCComponent with INS8250.SerialDevice with MouseListener with MouseMotionListener:
+class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PCComponent with INS8250.SerialDevice with MouseListener with MouseMotionListener with MouseWheelListener:
   override protected val componentName = "SerialMouse"
   override val name = "Serial Mouse"
+
+  private inline val QUEUE_THRESHOLD = 24
 
   private var master : INS8250.SerialMaster = uninitialized
   private val pendingBytes = new mutable.Queue[Int]()
@@ -22,12 +24,21 @@ class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PC
   private var RTS = false
   private var DTR = false
 
+  private var scaleX = 1.0
+  private var scaleY = 1.0
+
+  def setScaleXY(sx:Double,sy:Double): Unit =
+    scaleX = sx
+    scaleY = sy
+
   def enable(enabled:Boolean): Unit =
     target.removeMouseListener(this)
     target.removeMouseMotionListener(this)
+    target.removeMouseWheelListener(this)
     if enabled then
       target.addMouseListener(this)
       target.addMouseMotionListener(this)
+      target.addMouseWheelListener(this)
 
   override protected def reset(): Unit =
     pendingBytes.clear()
@@ -63,8 +74,9 @@ class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PC
     if lastMouseEvent == null then
       lastMouseEvent = e
 
-    var x = e.getX - lastMouseEvent.getX
-    var y = e.getY - lastMouseEvent.getY
+    var x = ((e.getX - lastMouseEvent.getX) * scaleX).toInt
+    var y = ((e.getY - lastMouseEvent.getY) * scaleY).toInt
+
     if x > 127 then x = 127
     else if x < -128 then x = -128
     if y > 127 then y = 127
@@ -88,7 +100,7 @@ class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PC
     Y7-Y0 movement in Y direction since last packet (signed byte)
   */
   private def makeEvent(lbPressed:Boolean,rbPressed:Boolean,cbPressed:Boolean,e:MouseEvent): Unit =
-    if DTR && RTS then
+    if DTR && RTS && pendingBytes.size < QUEUE_THRESHOLD then
       val deltaXY = getDeltaXY(e)
       val x = deltaXY & 0xFF
       val y = (deltaXY >> 8) & 0xFF
@@ -101,8 +113,16 @@ class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PC
       sendByte(byte2)
       sendByte(byte3)
       if logitech3Buttons then
-        val mb = if cbPressed then 0x20 else 0
-        val byte4 = mb
+        val mb = if cbPressed then 0x10 else 0
+        val w = e match
+          case we:MouseWheelEvent =>
+            var mov = we.getWheelRotation
+            if mov < -8 then mov = -8
+            else if mov > 7 then mov = 7
+            mov
+          case _ => 0
+
+        val byte4 = mb | w & 0xF
         sendByte(byte4)
   end makeEvent
 
@@ -110,6 +130,7 @@ class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PC
   override def mousePressed(e: MouseEvent): Unit = makeEvent(lbPressed = SwingUtilities.isLeftMouseButton(e),rbPressed = SwingUtilities.isRightMouseButton(e),cbPressed = SwingUtilities.isMiddleMouseButton(e),e)
   override def mouseReleased(e: MouseEvent): Unit = makeEvent(lbPressed = false,rbPressed = false,cbPressed = false,e)
   override def mouseEntered(e: MouseEvent): Unit = {}
-  override def mouseExited(e: MouseEvent): Unit = {}
+  override def mouseExited(e: MouseEvent): Unit = lastMouseEvent = null
   override def mouseDragged(e: MouseEvent): Unit = makeEvent(lbPressed = SwingUtilities.isLeftMouseButton(e),rbPressed = SwingUtilities.isRightMouseButton(e),cbPressed = SwingUtilities.isMiddleMouseButton(e),e)
   override def mouseMoved(e: MouseEvent): Unit = makeEvent(lbPressed = false,rbPressed = false,cbPressed = false,e)
+  override def mouseWheelMoved(e: MouseWheelEvent): Unit = makeEvent(lbPressed = false,rbPressed = false,cbPressed = false,e)

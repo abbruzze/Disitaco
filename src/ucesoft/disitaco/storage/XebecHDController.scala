@@ -153,7 +153,7 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
     CMD_TEST_DRIVE_READY  -> ("TestDriveReady",5,commandTestDriveReady),
     CMD_RECALIBRATE       -> ("Recalibrate",5,commandRecalibrate),
     CMD_REQ_SENSE_STATUS  -> ("RequestSenseStatus",5,commandSenseStatus),
-    CMD_FORMAT_DRIVE      -> ("FormatDrive",5,commandUnimplemented),
+    CMD_FORMAT_DRIVE      -> ("FormatDrive",5,commandFormatDrive),
     CMD_READY_VERIFY      -> ("ReadyVerify",5,commandReadyVerify),
     CMD_FORMAT_TRACK      -> ("FormatTrack",5,commandUnimplemented),
     CMD_FORMAT_BAD_TRACK  -> ("FormatBadTrack",5,commandUnimplemented),
@@ -284,7 +284,7 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
         createCommand(value) match
           case Some(command) =>
             log.info("%s issued command %s, expecting %d bytes", componentName, command.label, command.dcbLen)
-            printf("%s issued command %s, expecting %d bytes\n", componentName, command.label, command.dcbLen)
+            //printf("%s issued command %s, expecting %d bytes\n", componentName, command.label, command.dcbLen)
             pendingCommand = command
             state = ReceivingCommandBytes
           case None =>
@@ -294,7 +294,7 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
 //        printf("%s adding byte %02X to command %s\n",componentName,value,pendingCommand.label)
         if pendingCommand.addCMDByte(value) then
           log.info("%s command %s completed %s. Executing ...",componentName,pendingCommand.getCMDBytes.mkString("[",",","]"),pendingCommand.label)
-          printf("%s command %s completed %s. Executing ...\n",componentName,pendingCommand.getCMDBytes.mkString("[",",","]"),pendingCommand.label)
+          //printf("%s command %s completed %s. Executing ...\n",componentName,pendingCommand.getCMDBytes.mkString("[",",","]"),pendingCommand.label)
           executingCommand = pendingCommand
           pendingCommand = noCommand
           state = CommandExecution
@@ -426,7 +426,7 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
     driveChars.maxTracks = bytes(5) << 8 | bytes(6)
     driveChars.maxHeads = bytes(7)
     log.info("%s initialized drive characteristics: maxTracks=%d maxHeads=%d",componentName,driveChars.maxTracks,driveChars.maxHeads)
-    printf("%s initialized drive characteristics: maxTracks=%d maxHeads=%d\n",componentName,driveChars.maxTracks,driveChars.maxHeads)
+    //printf("%s initialized drive characteristics: maxTracks=%d maxHeads=%d\n",componentName,driveChars.maxTracks,driveChars.maxHeads)
 
     commandCompleted(sendIrq = true)
   end commandInitializeDriveCharacteristics
@@ -435,10 +435,10 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
     cmd.state match
       case 0 =>
         log.info("%s write to buffer executing ...",componentName)
-        printf("%s write to buffer executing ...\n",componentName)
+        //printf("%s write to buffer executing ...\n",componentName)
         cmd.state = 1
         cmd.setWriteReady(1024,data => {
-          printf("Write data buffer received %d",data.length)
+          //printf("Write data buffer received %d",data.length)
           System.arraycopy(data,0,sectorBuffer,0,data.length)
         })
       case 1 =>
@@ -446,7 +446,7 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
           cmd.state = 2
       case 2 =>
         log.info("%s write to buffer completed",componentName)
-        printf("%s write to buffer completed\n",componentName)
+        //printf("%s write to buffer completed\n",componentName)
         commandCompleted(sendIrq = true)
   end commandWriteBuffer
 
@@ -476,10 +476,10 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
       case 0 =>
         if cmd.id == CMD_READ then
           log.info("%s read executing on drive %d track %d head % d sector %d...",componentName,dcb.drive,dcb.track,dcb.head,dcb.sector)
-          printf("%s read executing on drive %d track %d head %d sector %d...\n",componentName,dcb.drive,dcb.track,dcb.head,dcb.sector)
+          //printf("%s read executing on drive %d track %d head %d sector %d...\n",componentName,dcb.drive,dcb.track,dcb.head,dcb.sector)
         else
           log.info("%s write executing on drive %d track %d head % d sector %d...",componentName,dcb.drive,dcb.track,dcb.head,dcb.sector)
-          printf("%s write executing on drive %d track %d head %d sector %d...\n",componentName,dcb.drive,dcb.track,dcb.head,dcb.sector)
+          //printf("%s write executing on drive %d track %d head %d sector %d...\n",componentName,dcb.drive,dcb.track,dcb.head,dcb.sector)
         if dcb.drive < numberOfDrives then
           drive.setMotorOn(true)
           drive.setHead(dcb.head)
@@ -495,7 +495,7 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
       case 1 => // seek track
         if cmd.decWaitCycles() then
           if drive.stepTrack() then
-            println(s"Track ${drive.getCurrentTrack} stepped")
+            //println(s"Track ${drive.getCurrentTrack} stepped")
             // ok, track reached
             cmd.state = cmd.id match
               case CMD_READ => 2
@@ -510,17 +510,17 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
             val bytes = drive.readSector(dcb.track,dcb.head,dcb.sector).toArray
 
             System.arraycopy(bytes,0,sectorBuffer,0,bytes.length)
-            println(s"Reading from track ${drive.getCurrentTrack} head ${drive.getHead} sector ${drive.getSector}")
+            //println(s"Reading from track ${drive.getCurrentTrack} head ${drive.getHead} sector ${drive.getSector}")
             cmd.dataReadEnqueue(bytes)
             // ok, go to next sector
             val lastTrack = dcb.track
             val lastHead = dcb.head
             goToNextSector(dcb,drive.geometry)
             if lastHead != dcb.head then
-              println("Head changed while reading...")
+              //println("Head changed while reading...")
               drive.setHead(dcb.head)
             if lastTrack != dcb.track then
-              println("Track changed while reading...")
+              //println("Track changed while reading...")
               drive.moveOnTrack(dcb.track)
               cmd.waitCycles(trackStepMillis)
               cmd.state = 1
@@ -529,11 +529,11 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
           cmd.state = 4
         else
           if drive.getSector == dcb.sector && !cmd.isWriteReady then
-            println(s"Writing to track ${drive.getCurrentTrack} head ${drive.getHead} sector ${drive.getSector}")
+            //println(s"Writing to track ${drive.getCurrentTrack} head ${drive.getHead} sector ${drive.getSector}")
 
             val targetDCB = DCB(track = dcb.track,head = dcb.head,sector = dcb.sector)
             cmd.setWriteReady(DiskImage.SECTOR_SIZE,data => {
-              println(s"Writing data to sector ${drive.getSector} ...")
+              //println(s"Writing data to sector ${drive.getSector} ...")
               System.arraycopy(data,0,sectorBuffer,0,data.length)
               drive.writeSector(targetDCB.track,targetDCB.head,targetDCB.sector,data)
               cmd.setWriteNotReady()
@@ -545,17 +545,17 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
             if lastHead != dcb.head then
               drive.setHead(dcb.head)
             if lastTrack != dcb.track then
-              println("Track changed while writing...")
+              //println("Track changed while writing...")
               drive.moveOnTrack(dcb.track)
               cmd.waitCycles(trackStepMillis)
               cmd.state = 1
       case 4 =>
           if cmd.id == CMD_READ then
             log.info("%s read sector completed", componentName)
-            printf("%s read sector completed\n", componentName)
+            //printf("%s read sector completed\n", componentName)
           else
             log.info("%s write sector completed", componentName)
-            printf("%s write sector completed\n", componentName)
+            //printf("%s write sector completed\n", componentName)
           drives(dcb.drive).setMotorOn(false)
           commandCompleted(sendIrq = true)
   end commandReadWrite
@@ -570,6 +570,22 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
 
     commandCompleted(sendIrq = true)
   end commandReadyVerify
+
+  private def commandFormatDrive(cmd:Command): Unit =
+    val dcb = cmd.getDCB
+    log.info("%s format drive #%d command...",componentName,dcb.drive)
+    val drive = drives(dcb.drive)
+    val geo = drive.geometry
+    val dataBuffer = if (dcb.controlField & 0x20) != 0 then sectorBuffer else Array.fill[Byte](DiskImage.SECTOR_SIZE)(0x6C)
+    for h <- 0 until geo.heads do
+      for t <- 0 until geo.tracks do
+        drive.moveOnTrack(t)
+        while !drive.stepTrack() do {}
+        for s <- 0 until geo.sectorsPerTrack do
+          drive.formatTrackSector(h,s,dataBuffer)
+          log.info("%s formatted track %d head %d sector %d",componentName,t,h,s)
+    commandCompleted(sendIrq = true)
+  end commandFormatDrive
 
   // =================================================================
   // TODO check clock frequency

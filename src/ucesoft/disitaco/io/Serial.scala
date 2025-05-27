@@ -6,8 +6,9 @@ import ucesoft.disitaco.chips.INS8250
  * @author Alessandro Abbruzzetti
  *         Created on 22/05/2025 15:07  
  */
-class Serial(portBase:Int,masterClockFreq:Int,irq:Boolean => Unit) extends IODevice:
-  final val ins8250 = new INS8250(masterClockFreq,irq)
+class Serial(comIndex:Int,portBase:Int,masterClockFreq:Int,irq:Boolean => Unit) extends IODevice:
+  override protected val componentName = s"Serial#$comIndex"
+  final val ins8250 = new INS8250(comIndex,masterClockFreq,irq)
 
   add(ins8250)
 
