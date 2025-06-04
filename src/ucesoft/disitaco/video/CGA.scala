@@ -19,7 +19,7 @@ class CGA extends VideoCard6845:
   private inline val RAM_SIZE = 16 * 1024
   private val ram = Array.ofDim[Byte](RAM_SIZE)
   private inline val RAM_SIZE_MASK = RAM_SIZE - 1
-  private final val charRom = Config.getHomeResource("/rom/mda/char_rom.bin").getOrElse(Config.getResource("/resources/rom/IBM_5788005_AM9264_1981_CGA_MDA_CARD.BIN").getOrElse(Array[Byte]()))
+  private final val charRom = Config.getMdaCgaCharROM
 
   private inline val CHAR_WIDTH = 8
   private inline val CHAR_HEIGHT = 8
@@ -32,12 +32,16 @@ class CGA extends VideoCard6845:
   private var local_ram_ptr = 0
   private var hborder = false
 
+  private var compositeMonitorEnabled = false
+
   /*
   Two character fonts are used on the Color/Graphics Monitor Adapter: a 7-high by 7-wide double-dot font and a
   7-high by 5-wide single-dot font. The font is selected by a jumper (P3).
   The single-dot font is selected by inserting the jumper; the double-dot font is selected by removing the jumper.
   */
   private var fontROMOffset = 0x1000 + 2048
+
+  setROMJumper(Config.isCGAAlternativeCharSet)
 
   // registers
   private var modeControlRegister = 0
@@ -61,23 +65,23 @@ class CGA extends VideoCard6845:
     /*14*/0xFFFFFF55, // yellow
     /*15*/0xFFFFFFFF, // white high intensity
   )
-  private final val LOW_RES_PALETTE = Array( // TODO
-    /*00*/0xFF000000, // black
-    /*01*/0xFF0000AA, // blue
-    /*02*/0xFF00AA00, // green
-    /*03*/0xFF00AAAA, // cyan
-    /*04*/0xFFAA0000, // red
-    /*05*/0xFFAA00AA, // magenta
-    /*06*/0xFFAA5500, // brown
-    /*07*/0xFFAAAAAA, // white
-    /*08*/0xFF555555, // gray
-    /*09*/0xFF5555FF, // light blue
-    /*10*/0xFF55FF55, // light green
-    /*11*/0xFF55FFFF, // light cyan
-    /*12*/0xFFFF5555, // light red
-    /*13*/0xFFFF55FF, // light magenta
-    /*14*/0xFFFFFF55, // yellow
-    /*15*/0xFFFFFFFF, // white high intensity
+  private final val COMPOSITE_640_200_PALETTE = Array(
+    /*00*/0xFF000000,
+    /*01*/0xFF207300,
+    /*02*/0xFF2242FF,
+    /*03*/0xFF3DACFF,
+    /*04*/0xFFB90065,
+    /*05*/0xFF737373,
+    /*06*/0xFFDE3AFF,
+    /*07*/0xFF91A9FF,
+    /*08*/0xFF534600,
+    /*09*/0xFF40CD00,
+    /*10*/0xFF777777,
+    /*11*/0xFF51FB76,
+    /*12*/0xFFF43500,
+    /*13*/0xFFE1CB00,
+    /*14*/0xFFF77CF7,
+    /*15*/0xFFFEFFFF
   )
   private final val PALETTE_320_200 = Array(
     Array(PALETTE(2),PALETTE(4),PALETTE(6)), // Color Set 1 = Green, Red, Brown
@@ -124,6 +128,8 @@ class CGA extends VideoCard6845:
       s"CGA TEXT MODE (${regs(1)} x $getVisibleTextRows)"
     else
       s"CGA BITMAP MODE (${regs(1) * getCharWidth} x ${getVisibleTextRows * (getYCharsTotal + 1)})"
+
+  override def enableCompositeMonitor(enable:Boolean): Unit = compositeMonitorEnabled = enable
 
   // ========================= Borders & clips ================================
   override protected def getHSyncOffset: Int = if _40ColMode || getMode == DrawMode.BITMAP then 5 else 2
@@ -292,6 +298,8 @@ class CGA extends VideoCard6845:
       ramPtr += (row >> 1) * bytesWidth + col
       var gfx = 0
       val cxLimit = (charWidth >> 1) - 1
+      var compBitCounter = 0
+
       while cx < charWidth && colPix < rightBorderPix do
         if (cx & cxLimit) == 0 then
           gfx = ram(ramPtr) & 0xFF
@@ -309,9 +317,18 @@ class CGA extends VideoCard6845:
             val palette = paletteSet(paletteIndex)
             color = palette(colorBits - 1)
         else if _160x200 then
-          val colorBit = (gfx & 0x80) != 0
-          gfx <<= 1
-          color = if colorBit then PALETTE(colorSelectRegister & 0xF) else PALETTE(0)
+          if compositeMonitorEnabled then
+            if compBitCounter == 0 then
+              compBitCounter = 3
+              gfx <<= 4
+            else
+              compBitCounter -= 1
+            val colorBit = (gfx >> 8) & 0xF
+            color = COMPOSITE_640_200_PALETTE(colorBit)
+          else
+            val colorBit = (gfx & 0x80) != 0
+            gfx <<= 1
+            color = if colorBit then PALETTE(colorSelectRegister & 0xF) else PALETTE(0)
         else
           val colorBit = (gfx & 0x80) != 0
           gfx <<= 1

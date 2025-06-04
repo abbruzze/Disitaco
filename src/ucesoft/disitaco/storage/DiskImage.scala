@@ -33,8 +33,10 @@ object DiskImage:
   final val geo320K: DiskGeometry  = FLOPPY_GEOMETRY_MAP(320 * 1024)
   final val geo360K: DiskGeometry  = FLOPPY_GEOMETRY_MAP(360 * 1024)
   final val geo720K: DiskGeometry  = FLOPPY_GEOMETRY_MAP(720 * 1024)
-  final val geo1440K: DiskGeometry  = FLOPPY_GEOMETRY_MAP(1440 * 1024)
   final val geo1200K: DiskGeometry  = FLOPPY_GEOMETRY_MAP(1200 * 1024)
+  final val geo1440K: DiskGeometry  = FLOPPY_GEOMETRY_MAP(1440 * 1024)
+  final val geo2880K: DiskGeometry  = FLOPPY_GEOMETRY_MAP(2880 * 1024)
+  
 
 end DiskImage
 

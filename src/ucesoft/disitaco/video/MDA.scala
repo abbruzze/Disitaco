@@ -12,7 +12,7 @@ import java.awt.Dimension
 class MDA extends VideoCard6845:
   override protected val componentName = "MDA"
   protected val ram = Array.ofDim[Byte](4 * 1024)
-  private final val charRom = Config.getHomeResource("/rom/mda/char_rom.bin").getOrElse(Config.getResource("/resources/rom/IBM_5788005_AM9264_1981_CGA_MDA_CARD.BIN").getOrElse(Array[Byte]()))
+  private final val charRom = Config.getMdaCgaCharROM
   // COLOR PALETTE =======================================
   protected inline val BACKGROUND_COLOR = 0xFF000000
   protected inline val FOREGROUND_COLOR = 0xFF189929

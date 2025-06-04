@@ -6,7 +6,9 @@ import ucesoft.disitaco.chips.{i8253, i8255}
 import ucesoft.disitaco.cpu.i8088
 import ucesoft.disitaco.io.{DMA, FDC, HardDiskFDC, IODevice, IOHandler, PIC, PIT, PPI, RTC, Serial}
 import ucesoft.disitaco.keyboard.Keyboard
+import ucesoft.disitaco.printer.FilePrinter
 import ucesoft.disitaco.speaker.Speaker
+import ucesoft.disitaco.storage.DiskImage
 import ucesoft.disitaco.video.{CGA, HDA, MDA, VideoCard}
 
 import scala.compiletime.uninitialized
@@ -16,9 +18,15 @@ import scala.compiletime.uninitialized
  *         Created on 27/03/2025 10:47  
  */
 class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardListener with Clock.Clockable:
+  override val componentName = "Motherboard"
   private inline val DEFAULT_CLOCK_FREQ = 4_770_000 // Mhz
   private inline val SPEAKER_AUDIO_RATE = 44_100 // 44.1 Khz
-  private inline val SPEAKER_SAMPLE_CYCLES = DEFAULT_CLOCK_FREQ / SPEAKER_AUDIO_RATE
+
+  private final val clockFrequency = Config.getClockFrequency
+  private final val clockAccRatio = clockFrequency.toDouble / DEFAULT_CLOCK_FREQ
+  private final val SPEAKER_SAMPLE_CYCLES = clockFrequency / SPEAKER_AUDIO_RATE
+  private final val i8253Cycles = 4 * clockAccRatio // 4.77 / 4
+  private final val fdcHdcCycles = if clockFrequency == DEFAULT_CLOCK_FREQ then 2 else 1
 
   final val floppyDrives = 2
   final val hardDisks = 2
@@ -33,12 +41,16 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   final val cpu = new i8088(memory,ioHandler,pic.pic)
   final val keyboard = new Keyboard(clock,pic.pic.setIRQ(1,_)) // keyboard sends interrupt to line 1
   final val videoCard = new CGA
-  final val fdc = new FDC(dma.dma,2,pic.pic.setIRQ(6,_)) // fdc sends interrupt to line 6
-  final val hdc = new HardDiskFDC(dma.dma,3,pic.pic.setIRQ(5,_),diskIDOffset = 2,numberOfHDDrives = hardDisks) // hdc sends interrupt to line 5
+  final val fdc = new FDC(Config.getFloppyGeometry,dma.dma,2,pic.pic.setIRQ(6,_)) // fdc sends interrupt to line 6
+  final val hdc : HardDiskFDC = if Config.isHDConfigured then
+    new HardDiskFDC(dma.dma,3,pic.pic.setIRQ(5,_),diskIDOffset = 2,numberOfHDDrives = Config.getHDImages.size) // hdc sends interrupt to line 5
+  else
+    null
   final val rtc = new RTC(clock)
   final val speaker = new Speaker(SPEAKER_AUDIO_RATE)
-  final val com1 = new Serial(comIndex = 1,0x3F8,DEFAULT_CLOCK_FREQ,pic.pic.setIRQ(4,_))
-  final val com2 = new Serial(comIndex = 2,0x2F8,DEFAULT_CLOCK_FREQ,pic.pic.setIRQ(3,_))
+  final val com1 = new Serial(comIndex = 1,0x3F8,clockFrequency,pic.pic.setIRQ(4,_))
+  final val com2 = new Serial(comIndex = 2,0x2F8,clockFrequency,pic.pic.setIRQ(3,_))
+  final val lpt1 = new FilePrinter(lptIndex = 1,0x278,"""C:\Users\ealeame\OneDrive - Ericsson\Desktop\lpt1.txt""")
 
   private final val nmiMaskDevice = new IODevice:
     override protected val componentName = "NMI Mask"
@@ -50,18 +62,16 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
       nmiEnabled = (value & 0x80) != 0
       log.info("NMI mask enabled: %b",nmiEnabled)
 
-  private val ioDevices : Array[IODevice] = Array(dma,pic,pit,ppi,nmiMaskDevice,videoCard,fdc,rtc,hdc,com1,com2)
+  private val ioDevices : Array[IODevice] = Array(dma,pic,pit,ppi,nmiMaskDevice,videoCard,fdc,rtc,hdc,com1,com2,lpt1)
 
   private var timer2OutValue = false
   private var speakerDataEnabled = false
 
   private var nmiEnabled = false
 
-  private var clockFrequency = DEFAULT_CLOCK_FREQ
   private var videoCycles = 16f
   private var videoCycleCounter = 0f
-  private var i8253Cycles = 4 // 4.77 / 4
-  private var i8253CycleCounter = i8253Cycles
+  private var i8253CycleCounter = 0.0
   private var lastVideoCharFrequency = 0.0
   private var speakerCycles = 0
 
@@ -78,12 +88,6 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
     _display = display
     videoCard.setDisplay(_display)
     add(_display)
-
-  final def changeClockFrequency(freq:Int): Unit =
-    // TODO
-    clockFrequency = freq
-    i8253Cycles = 4
-    videoCycles = (clockFrequency / lastVideoCharFrequency).toFloat
 
   // VideoCardListener
   final def modeChanged(mode: String,sw:Int,sh:Int): Unit =
@@ -129,14 +133,20 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   add(ioHandler)
   add(keyboard)
   add(fdc)
-  add(hdc)
+  if hdc != null then add(hdc)
   add(rtc)
   add(speaker)
   add(com1)
   add(com2)
+  add(lpt1)
   ioDevices.foreach(add)
 
   override protected def init(): Unit =
+    log.info("Master clock frequency set to %d",clockFrequency)
+    if Config.isHDConfigured then
+      log.info("Hard disk configured.")
+      for (image,drive) <- Config.getHDImages.zip(List("C","D")) do
+        log.info("Drive %s attached image: %s",drive,image)
     wiring()
     speaker.setBufferInMillis(5)
     speaker.start()
@@ -244,9 +254,9 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
     else
       cpuClockToWait = cpu.execute() - 1
     // i8253: 4.77Mhz / 4
-    i8253CycleCounter -= 1
-    if i8253CycleCounter == 0 then
-      i8253CycleCounter = i8253Cycles
+    i8253CycleCounter += 1
+    if i8253CycleCounter >= i8253Cycles then
+      i8253CycleCounter -= i8253Cycles
       pit.timer.clock()
       speaker.addSample(timer2OutValue && speakerDataEnabled)
     // DMA: same clock of 8088
@@ -257,14 +267,13 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
       videoCycleCounter -= videoCycles
       videoCard.clockChar()
     // FDC
-    fdc.fdc.clock(_cycles = 2)
+    fdc.fdc.clock(_cycles = fdcHdcCycles)
     // HDC
-    hdc.hdFdc.clock(_cycles = 2)
+    hdc.hdFdc.clock(_cycles = fdcHdcCycles)
     // Speaker
     speakerCycles += 1
     if speakerCycles >= SPEAKER_SAMPLE_CYCLES then
       speakerCycles = 0
-      //println(s"SPEAKER OUT is timer2OutValue=$timer2OutValue speakerDataEnabled=$speakerDataEnabled")
       speaker.setOut()
     // serial
     com1.ins8250.clock()

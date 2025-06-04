@@ -29,7 +29,8 @@ trait PCComponent extends MessageBus.MessageListener:
     components.foreach(_.registerOnBus())
   
   final def add(c:PCComponent): Unit =
-    components += c
+    if !components.contains(c) then
+      components += c
   final def remove(c:PCComponent): Unit =
     components -= c
   

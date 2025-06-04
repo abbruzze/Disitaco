@@ -19,6 +19,8 @@ import javax.swing.*
  */
 object TestRomDis:
   def main(args:Array[String]): Unit =
+
+    Config.loadConfig()
 /*
     val u19 = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\turboxtbios-u19.rom"""))
     val u18 = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\turboxtbios-u18.rom"""))
@@ -37,7 +39,7 @@ object TestRomDis:
     for _ <- 1 to (32768 - u18.length) / 8192 do
       rom = rom ++ u18
 */
-    val rom/*glabios*/ = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\GLABIOS_0.2.5_8T.ROM"""))
+    val rom/*glabios*/ = Config.getBios
 
     val mother = new Motherboard
     val frame = new JFrame()
@@ -108,29 +110,52 @@ object TestRomDis:
     mother.setLogger(log)
 
     mem.loadROM(rom)
-    val glatick = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\GLaTICK_0.8.5_AT.ROM"""))
-    mem.registerOptionROM(0xD2000,glatick,"Glatick")
-    val harddisk = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\IBM_XEBEC_5000059_1982.BIN""")) // IBM_XEBEC_62X0822_1985.BIN / IBM_XEBEC_5000059_1982
-    mem.registerOptionROM(0xD0000,harddisk,"harddisk")
-    val hdDisk = new FixedDiskImage("""C:\Users\ealeame\OneDrive - Ericsson\Desktop\disitaco\H_C.img""")
-    val h1Disk = new FixedDiskImage("""C:\Users\ealeame\OneDrive - Ericsson\Desktop\disitaco\H_D.img""")
-    for d <- mother.hdc.hdFdc.getDrives do
-      d.setListener(storagePanel)
-    mother.hdc.hdFdc.getDrives(0).insertDisk(hdDisk)
-    mother.hdc.hdFdc.getDrives(1).insertDisk(h1Disk)
+
+    // option roms
+    for or <- Config.getOptionRomList do
+      mem.registerOptionROM(or.address,or.rom,or.label)
+      log.info("Option ROM '%s' registered",or.label)
+
+    // HDD
+    if Config.isHDConfigured then
+      for d <- mother.hdc.hdFdc.getDrives do
+        d.setListener(storagePanel)
+
+      for (hdd,i) <- Config.getHDImages.zipWithIndex do
+        mother.hdc.hdFdc.getDrives(i).insertDisk(new FixedDiskImage(Config.getAbsolutePath(hdd)))
+
+    // Floppy
+    Config.getFloppyAImage.foreach(f => mother.fdc.fdc.getDrives(0).insertDisk(new FloppyDiskImage(Config.getAbsolutePath(f))))
+    Config.getFloppyBImage.foreach(f => mother.fdc.fdc.getDrives(1).insertDisk(new FloppyDiskImage(Config.getAbsolutePath(f))))
+
+//    val glatick = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\GLaTICK_0.8.5_AT.ROM"""))
+//    mem.registerOptionROM(0xD2000,glatick,"Glatick")
+//    val harddisk = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\IBM_XEBEC_5000059_1982.BIN""")) // IBM_XEBEC_62X0822_1985.BIN / IBM_XEBEC_5000059_1982
+//    mem.registerOptionROM(0xD0000,harddisk,"harddisk")
+//    val hdDisk = new FixedDiskImage("""C:\Users\ealeame\OneDrive - Ericsson\Desktop\disitaco\H_C.img""")
+//    val h1Disk = new FixedDiskImage("""C:\Users\ealeame\OneDrive - Ericsson\Desktop\disitaco\H_D.img""")
+//    for d <- mother.hdc.hdFdc.getDrives do
+//      d.setListener(storagePanel)
+//    mother.hdc.hdFdc.getDrives(0).insertDisk(hdDisk)
+//    mother.hdc.hdFdc.getDrives(1).insertDisk(h1Disk)
 
     // EMS
-    val ems = new LotechEMS(0x260)
-    ems.register(mother.ioHandler)
-    mem.registerEMSHandler(0xE,ems)
-//    val basic = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\basic_1.10.rom"""))
-//    mem.registerOptionROM(0xF6000,basic,"Basic 1.10")
+    if Config.isEMSLotechEnabled then
+      val ems = new LotechEMS(Config.getEMSLotechPort)
+      mother.add(ems)
+      ems.register(mother.ioHandler)
+      mem.registerEMSHandler(Config.getEMSLotechAddressPage,ems)
 
     // Mouse
-    val mouse = new SerialMouse(display,logitech3Buttons = true)
-    mouse.enable(enabled = true)
-    mouse.setScaleXY(0.5,0.5)
-    mother.com1.ins8250.setDevice(mouse)
+    if Config.isMouseEnabled then
+      val mouse = new SerialMouse(display,logitech3Buttons = Config.isMouse3Buttons)
+      mother.add(mouse)
+      mouse.enable(enabled = true)
+      mouse.setScaleXY(Config.getMouseScaleX,Config.getMouseScaleY)
+      if Config.getMouseCOMPort == 1 then
+        mother.com1.ins8250.setDevice(mouse)
+      else
+        mother.com2.ins8250.setDevice(mouse)
 
     mother.videoCard.setClippingOn(on = true)
 

@@ -74,7 +74,7 @@ class Debugger(cpu:i8088,
     case NoStep, WaitReturn, WaitTarget
 
   private val frame = new JFrame("Debugger")
-  private val componentToObserveModels = for c <- componentsToObserve yield new PropertiesTableModel(c,frame)
+  private val componentToObserveModels = for c <- componentsToObserve.filterNot(_ == null) yield new PropertiesTableModel(c,frame)
   private val logPanel = new RSyntaxTextArea(10,100)
   private val onOffButton = new JToggleButton(new ImageIcon(getClass.getResource("/resources/trace/on.png")))
 

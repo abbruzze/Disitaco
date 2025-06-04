@@ -3,6 +3,7 @@ package ucesoft.disitaco.storage
 import ucesoft.disitaco.PCComponent
 import ucesoft.disitaco.chips.i8237
 import ucesoft.disitaco.chips.i8237.DMADevice
+import ucesoft.disitaco.storage.DiskImage.DiskGeometry
 
 import javax.swing.ImageIcon
 import scala.collection.mutable.ListBuffer
@@ -27,7 +28,7 @@ import scala.collection.mutable.ListBuffer
  * This arrangement made it impossible to use overlapped seeks because the FDC could not rotate the drive selection.
  * This design (apart from the drive ready signal tied high) also precluded the use of drive polling, which likewise required the FDC to change drive selection.
  */
-class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponent with DMADevice:
+class i8272A(floppyGeometry:DiskGeometry,dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponent with DMADevice:
   override protected val icon = new ImageIcon(getClass.getResource("/resources/trace/fdc.png"))
   override protected val componentName = "NEC_PD765"
 
@@ -151,10 +152,10 @@ class i8272A(dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponen
   import State.*
 
   private val drives = Array(
-    new DiskDrive(0,DiskImage.geo720K,FDC_CLOCK,RPM = 300),
-    new DiskDrive(1,DiskImage.geo720K,FDC_CLOCK,RPM = 300),
-    new DiskDrive(2,DiskImage.geo360K,FDC_CLOCK,RPM = 300),
-    new DiskDrive(3,DiskImage.geo360K,FDC_CLOCK,RPM = 300)
+    new DiskDrive(0,floppyGeometry,FDC_CLOCK,RPM = 300),
+    new DiskDrive(1,floppyGeometry,FDC_CLOCK,RPM = 300),
+    new DiskDrive(2,floppyGeometry,FDC_CLOCK,RPM = 300),
+    new DiskDrive(3,floppyGeometry,FDC_CLOCK,RPM = 300)
   )
 
   private var state = Idle

@@ -20,3 +20,4 @@ trait VideoCard extends IODevice with VideoFrameProducer:
   def clockChar(): Unit
   def setModeListener(listener: VideoCard.VideoCardListener): Unit
   def setDisplay(display: Display): Unit
+  def enableCompositeMonitor(enable:Boolean): Unit = {}

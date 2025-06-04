@@ -38,6 +38,7 @@ class StoragePanel extends JPanel with DiskDrive.DiskDriveListener:
     var sector = 0
     var doubleSide = false
     var writing = false
+    var diskInserted = false
 
     init()
 
@@ -101,7 +102,7 @@ class StoragePanel extends JPanel with DiskDrive.DiskDriveListener:
         if diskette(driveIndex).hardDisk then
           diskette(driveIndex).icon.setIcon(if on then hdRead else hdOff)
         else
-          diskette(driveIndex).icon.setIcon(if on then disketteRead else disketteOff)
+          diskette(driveIndex).icon.setIcon(if on then disketteRead else if diskette(driveIndex).diskInserted then disketteOff else disketteDisabled)
       }
   override def onDiskInserted(driveIndex: Int, image: DiskImage): Unit =
     swing {
@@ -113,6 +114,7 @@ class StoragePanel extends JPanel with DiskDrive.DiskDriveListener:
       diskette(driveIndex).sector = 0
       diskette(driveIndex).updateInfo()
       diskette(driveIndex).setToolTipText(image.diskName)
+      diskette(driveIndex).diskInserted = true
       if image.isReadOnly then
         diskette(driveIndex).setBorder(BorderFactory.createLineBorder(Color.RED))
       else
@@ -127,6 +129,7 @@ class StoragePanel extends JPanel with DiskDrive.DiskDriveListener:
       diskette(driveIndex).sector = 0
       diskette(driveIndex).updateInfo()
       diskette(driveIndex).setToolTipText(null)
+      diskette(driveIndex).diskInserted = false
       diskette(driveIndex).setBorder(BorderFactory.createEmptyBorder())
     }
   override def onModeChanged(id:Int,isWriting:Boolean): Unit =
