@@ -4,6 +4,7 @@ import ucesoft.disitaco.cpu.Registers
 import ucesoft.disitaco.debugger.Debugger
 import ucesoft.disitaco.io.LotechEMS
 import ucesoft.disitaco.mouse.SerialMouse
+import ucesoft.disitaco.serial.TCPSerialDevice
 import ucesoft.disitaco.storage.{DiskImage, Fast13IntHandler, FixedDiskImage, FloppyDiskImage}
 import ucesoft.disitaco.ui.StoragePanel
 import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
@@ -51,6 +52,12 @@ object TestRomDis:
     val displayLabel = new JLabel("Waiting video display updating ...")
     val displayPanel = new JPanel(new BorderLayout())
     val infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
+    val northPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
+    val warpButton = new JToggleButton("Warp")
+    warpButton.setFocusable(false)
+    northPanel.add(warpButton)
+    frame.getContentPane.add("North",northPanel)
+    warpButton.addActionListener(_ => mother.clock.setWarpMode(warpButton.isSelected))
     infoPanel.add(displayLabel)
     val storagePanel = new StoragePanel
     SwingUtilities.invokeAndWait(() => {
@@ -67,7 +74,7 @@ object TestRomDis:
     val mem = mother.memory
     val cpu = mother.cpu
 
-    storagePanel.setDiskette(2,2,new StoragePanel.StorageListener:
+    storagePanel.setDiskette(2,Config.getHDImages.size,new StoragePanel.StorageListener:
       private var lastDir = new File("./")
       override def openImage(diskId: Int): Unit =
         val fc = new JFileChooser()
@@ -157,6 +164,9 @@ object TestRomDis:
       else
         mother.com2.ins8250.setDevice(mouse)
 
+    val tcpSerial = new TCPSerialDevice
+    mother.com2.ins8250.setDevice(tcpSerial)
+
     mother.videoCard.setClippingOn(on = true)
 
     display.addKeyListener(mother.keyboard)
@@ -169,7 +179,10 @@ object TestRomDis:
     debugger.setRAM(mem.getRAM)
     debugger.setROM(mem.getROM)
 
-    SwingUtilities.invokeAndWait(() => debugger.enableTracing(true))
+    Logger.getLogger.setLevel(java.util.logging.Level.SEVERE)
+
+    if Config.isDebuggerOpenAtStartup then
+      SwingUtilities.invokeAndWait(() => debugger.enableTracing(true))
 
     mother.resetComponent()
     mother.clock.start()
@@ -177,3 +190,12 @@ object TestRomDis:
       t.printStackTrace()
       sys.exit(1)
     })
+
+    while true do
+      val host = scala.io.StdIn.readLine("Connect to host :")
+      val port = scala.io.StdIn.readLine("Connect to port :").toInt
+      tcpSerial.connect(host,port) match
+        case Some(e) =>
+          println(s"Error while connecting to $host:$port: $e")
+        case None =>
+          println(s"OK, connected")

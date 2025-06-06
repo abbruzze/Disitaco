@@ -118,7 +118,7 @@ abstract class VideoCard6845 extends VideoCard:
   protected final val attrBuffer = Array.ofDim[Int](256)
 
   // ==========================================================
-  def setClippingOn(on:Boolean): Unit =
+  override def setClippingOn(on:Boolean): Unit =
     clippingOn = on
     updateGeometry()
 
@@ -444,11 +444,6 @@ abstract class VideoCard6845 extends VideoCard:
   end clockChar
 
   // Abstract methods =========================================
-  def getPixelClockFrequencyHz: Double
-  def getPreferredSize: Dimension
-  def getPreferredZoomX: Double = 1.0
-  def getPreferredZoomY: Double = 1.0
-
   protected def getCharWidth: Int
 
   protected def getHSyncOffset: Int

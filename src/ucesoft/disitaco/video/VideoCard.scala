@@ -4,6 +4,8 @@ import ucesoft.disitaco.Display
 import ucesoft.disitaco.debugger.Debugger.VideoFrameProducer
 import ucesoft.disitaco.io.IODevice
 
+import java.awt.Dimension
+
 /**
  * @author Alessandro Abbruzzetti
  *         Created on 04/04/2025 16:34  
@@ -21,3 +23,10 @@ trait VideoCard extends IODevice with VideoFrameProducer:
   def setModeListener(listener: VideoCard.VideoCardListener): Unit
   def setDisplay(display: Display): Unit
   def enableCompositeMonitor(enable:Boolean): Unit = {}
+
+  def getPixelClockFrequencyHz: Double
+  def getPreferredSize: Dimension
+  def getPreferredZoomX: Double = 1.0
+  def getPreferredZoomY: Double = 1.0
+
+  def setClippingOn(on:Boolean): Unit

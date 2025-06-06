@@ -37,8 +37,7 @@ class FilePrinter(lptIndex:Int, portBase:Int,file:String) extends ParallelPort:
     var status = 0x80 | 0x8 | 0x4 // busy, error, IRQ
     if selected then status |= 0x10
     status
-  override def writeStatus(status: Int): Unit =
-    println(s"Write status: $status")
+  override def writeStatus(status: Int): Unit = {}
   override def readControl: Int = control
   override def writeControl(control: Int): Unit =
     selected = (control & 0x8) != 0
@@ -50,6 +49,7 @@ class FilePrinter(lptIndex:Int, portBase:Int,file:String) extends ParallelPort:
     filter(data) match
       case Some(data) =>
         printer.print(data.toChar)
+        if data == 10 then printer.flush()
       case None =>
 
   private def filter(byte:Int): Option[Int] =

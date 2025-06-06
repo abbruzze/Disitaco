@@ -29,9 +29,9 @@ Compile / sourceGenerators += Def.task {
 }.taskValue
 
 libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "3.6.0"
-libraryDependencies += "com.formdev" % "flatlaf" % "3.5.4"
+libraryDependencies += "com.formdev" % "flatlaf" % "3.6"
 //libraryDependencies += "org.yaml" % "snakeyaml" % "2.3"
-libraryDependencies += "org.jfree" % "jfreechart" % "1.5.5"
+libraryDependencies += "org.jfree" % "jfreechart" % "1.5.6"
 libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.19.0"
 
 Compile / resourceDirectory := baseDirectory.value / "resources"

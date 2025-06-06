@@ -4,13 +4,13 @@ import ucesoft.disitaco.MessageBus.VideoModeChanged
 import ucesoft.disitaco.chips.i8237.{CPUDevice, DMADevice}
 import ucesoft.disitaco.chips.{i8253, i8255}
 import ucesoft.disitaco.cpu.i8088
-import ucesoft.disitaco.io.{DMA, FDC, HardDiskFDC, IODevice, IOHandler, PIC, PIT, PPI, RTC, Serial}
+import ucesoft.disitaco.io.*
 import ucesoft.disitaco.keyboard.Keyboard
 import ucesoft.disitaco.printer.FilePrinter
 import ucesoft.disitaco.speaker.Speaker
-import ucesoft.disitaco.storage.DiskImage
-import ucesoft.disitaco.video.{CGA, HDA, MDA, VideoCard}
+import ucesoft.disitaco.video.VideoCard
 
+import java.io.File
 import scala.compiletime.uninitialized
 
 /**
@@ -20,19 +20,20 @@ import scala.compiletime.uninitialized
 class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardListener with Clock.Clockable:
   override val componentName = "Motherboard"
   private inline val DEFAULT_CLOCK_FREQ = 4_770_000 // Mhz
-  private inline val SPEAKER_AUDIO_RATE = 44_100 // 44.1 Khz
+  private final val SPEAKER_AUDIO_RATE = Config.getSpeakerSamplingFreq
 
   private final val clockFrequency = Config.getClockFrequency
   private final val clockAccRatio = clockFrequency.toDouble / DEFAULT_CLOCK_FREQ
   private final val SPEAKER_SAMPLE_CYCLES = clockFrequency / SPEAKER_AUDIO_RATE
   private final val i8253Cycles = 4 * clockAccRatio // 4.77 / 4
   private final val fdcHdcCycles = if clockFrequency == DEFAULT_CLOCK_FREQ then 2 else 1
+  private final val cpuCorrFactor = Config.getCPUCorrectionFactor
 
   final val floppyDrives = 2
-  final val hardDisks = 2
+  final val hardDisks = Config.getHDImages.size
 
   final val clock = new Clock("MasterClock",DEFAULT_CLOCK_FREQ)
-  final val memory = new MMU(640)
+  final val memory = new MMU(Config.getMemoryInKBytes)
   final val dma = new DMA(memory)
   final val pic = new PIC
   final val pit = new PIT
@@ -40,17 +41,17 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   final val ioHandler = new IOHandler
   final val cpu = new i8088(memory,ioHandler,pic.pic)
   final val keyboard = new Keyboard(clock,pic.pic.setIRQ(1,_)) // keyboard sends interrupt to line 1
-  final val videoCard = new CGA
+  final val videoCard = Config.getVideoCard
   final val fdc = new FDC(Config.getFloppyGeometry,dma.dma,2,pic.pic.setIRQ(6,_)) // fdc sends interrupt to line 6
   final val hdc : HardDiskFDC = if Config.isHDConfigured then
-    new HardDiskFDC(dma.dma,3,pic.pic.setIRQ(5,_),diskIDOffset = 2,numberOfHDDrives = Config.getHDImages.size) // hdc sends interrupt to line 5
+    new HardDiskFDC(dma.dma,3,pic.pic.setIRQ(5,_),diskIDOffset = 2,numberOfHDDrives = hardDisks) // hdc sends interrupt to line 5
   else
     null
   final val rtc = new RTC(clock)
   final val speaker = new Speaker(SPEAKER_AUDIO_RATE)
   final val com1 = new Serial(comIndex = 1,0x3F8,clockFrequency,pic.pic.setIRQ(4,_))
   final val com2 = new Serial(comIndex = 2,0x2F8,clockFrequency,pic.pic.setIRQ(3,_))
-  final val lpt1 = new FilePrinter(lptIndex = 1,0x278,"""C:\Users\ealeame\OneDrive - Ericsson\Desktop\lpt1.txt""")
+  final val lpt1 = new FilePrinter(lptIndex = 1,0x278,new File(Config.printerDir,"lpt1.txt").toString)
 
   private final val nmiMaskDevice = new IODevice:
     override protected val componentName = "NMI Mask"
@@ -107,7 +108,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   /*
     |Bit           | Description
     ================================================
-    | 0            | 0 = Normal POST then boot, 1 = Continuous power-on self-test (POST) - used for burn-in testing only
+    | 0            | 1 = Normal POST then boot, 0 = Continuous power-on self-test (POST) - used for burn-in testing only
     | 1            | 1 = 8087 math coprocessor NOT installed
     | 3-2          | Banks of memory installed: two system boards 64/256K, 256/640K
     |              | 00 = 64K/256K
@@ -148,9 +149,12 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
       for (image,drive) <- Config.getHDImages.zip(List("C","D")) do
         log.info("Drive %s attached image: %s",drive,image)
     wiring()
-    speaker.setBufferInMillis(5)
+    speaker.setBufferInMillis(Config.getSpeakerBufferMillis)
     speaker.start()
     speaker.turn(on = true)
+
+    if Config.isCGACompositeMonitor then
+      videoCard.enableCompositeMonitor(true)
   end init
 
   private def wiring(): Unit =
@@ -253,6 +257,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
         busHoldingAck()
     else
       cpuClockToWait = cpu.execute() - 1
+      if cpuCorrFactor != 1 then cpuClockToWait = (cpuClockToWait * cpuCorrFactor).toInt
     // i8253: 4.77Mhz / 4
     i8253CycleCounter += 1
     if i8253CycleCounter >= i8253Cycles then

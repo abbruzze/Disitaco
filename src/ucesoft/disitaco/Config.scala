@@ -1,6 +1,7 @@
 package ucesoft.disitaco
 
 import ucesoft.disitaco.storage.DiskImage
+import ucesoft.disitaco.video.{CGA, HDA, MDA, VideoCard}
 
 import java.io.{File, FileNotFoundException, FileReader}
 import java.util.Properties
@@ -20,8 +21,14 @@ object Config:
 
   private def romDir : File = new File(homeDir,"rom")
   private def configDir: File = new File(homeDir,"config")
+  
+  def printerDir: File = new File(homeDir,"printer")
 
   def loadConfig(): Unit =
+    // check printer dir
+    val pdir = printerDir
+    if !pdir.exists() then
+      pdir.mkdirs()
     val file = new File(configDir,CONFIG_FILE)
     if !file.exists() then
       throw new FileNotFoundException(s"Missing Disitaco configuration file: $file")
@@ -112,6 +119,7 @@ object Config:
     }
 
   def isCGAAlternativeCharSet: Boolean = config.getProperty("cga.altCharSet","false").toBoolean
+  def isCGACompositeMonitor: Boolean = config.getProperty("cga.composite","false").toBoolean
 
   def isHDConfigured: Boolean = optionRomList.exists(_.label.toUpperCase().startsWith("XEBEC"))
 
@@ -134,6 +142,21 @@ object Config:
   def getMouseCOMPort: Int = config.getProperty("mouse.serial.com","1").toInt
   def getMouseScaleX: Double = config.getProperty("mouse.serial.scale.x","1.0").toDouble
   def getMouseScaleY: Double = config.getProperty("mouse.serial.scale.y","1.0").toDouble
+  
+  def getVideoCard: VideoCard =
+    config.getProperty("video.card","cga").toUpperCase() match
+      case "MDA" => new MDA
+      case "HDA" => new HDA
+      case _ => new CGA
+  
+  def getMemoryInKBytes: Int = config.getProperty("memory","640").toInt
+  
+  def getCPUCorrectionFactor: Float = config.getProperty("cpu.correctionFactor","1.0").toFloat
+  
+  def getSpeakerSamplingFreq: Int = config.getProperty("speaker.samplingFreq","44100").toInt
+  def getSpeakerBufferMillis: Int = config.getProperty("speaker.audioBufferMillis","5").toInt
+  
+  def isDebuggerOpenAtStartup: Boolean = config.getProperty("debugger.openAtStartup","false").toBoolean
     
   private def getHomeResource(path:String): Option[Array[Byte]] =
     val filePath = if path.startsWith("/") || path.charAt(1) == ':' then java.nio.file.Paths.get(path) else java.nio.file.Paths.get(homeDir,path)
