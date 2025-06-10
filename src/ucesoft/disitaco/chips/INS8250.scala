@@ -270,10 +270,18 @@ class INS8250(comIndex:Int,masterClockFreq:Int,irq: Boolean => Unit) extends PCC
     end if
   end setSignal
 
-  override def cts(on: Boolean): Unit = setSignal(CTS,on)
-  override def dsr(on: Boolean): Unit = setSignal(DSR, on)
-  override def rlsd(on: Boolean): Unit = setSignal(RLSD, on)
-  override def ri(on: Boolean): Unit = setSignal(RI, on)
+  override def cts(on: Boolean): Unit =
+    setSignal(CTS,on)
+    if on then registers(REG_MODEM_STATUS) |= 0x10 else registers(REG_MODEM_STATUS) &= ~0x10
+  override def dsr(on: Boolean): Unit =
+    setSignal(DSR, on)
+    if on then registers(REG_MODEM_STATUS) |= 0x20 else registers(REG_MODEM_STATUS) &= ~0x20
+  override def rlsd(on: Boolean): Unit =
+    setSignal(RLSD, on)
+    if on then registers(REG_MODEM_STATUS) |= 0x80 else registers(REG_MODEM_STATUS) &= ~0x80
+  override def ri(on: Boolean): Unit =
+    setSignal(RI, on)
+    if on then registers(REG_MODEM_STATUS) |= 0x40 else registers(REG_MODEM_STATUS) &= ~0x40
 
   def setDevice(device: SerialDevice): Unit =
     this.device = device

@@ -4,7 +4,7 @@ import ucesoft.disitaco.cpu.Registers
 import ucesoft.disitaco.debugger.Debugger
 import ucesoft.disitaco.io.LotechEMS
 import ucesoft.disitaco.mouse.SerialMouse
-import ucesoft.disitaco.serial.TCPSerialDevice
+import ucesoft.disitaco.serial.{HostFileTransferSerialDevice, TCPSerialDevice}
 import ucesoft.disitaco.storage.{DiskImage, Fast13IntHandler, FixedDiskImage, FloppyDiskImage}
 import ucesoft.disitaco.ui.StoragePanel
 import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
@@ -164,9 +164,6 @@ object TestRomDis:
       else
         mother.com2.ins8250.setDevice(mouse)
 
-    val tcpSerial = new TCPSerialDevice
-    mother.com2.ins8250.setDevice(tcpSerial)
-
     mother.videoCard.setClippingOn(on = true)
 
     display.addKeyListener(mother.keyboard)
@@ -190,12 +187,18 @@ object TestRomDis:
       t.printStackTrace()
       sys.exit(1)
     })
+    
+    val localftp = new HostFileTransferSerialDevice
+    mother.com2.ins8250.setDevice(localftp)
 
-    while true do
-      val host = scala.io.StdIn.readLine("Connect to host :")
-      val port = scala.io.StdIn.readLine("Connect to port :").toInt
-      tcpSerial.connect(host,port) match
-        case Some(e) =>
-          println(s"Error while connecting to $host:$port: $e")
-        case None =>
-          println(s"OK, connected")
+//    val tcpSerial = new TCPSerialDevice
+//    mother.com2.ins8250.setDevice(tcpSerial)
+//    
+//    while true do
+//      val host = scala.io.StdIn.readLine("Connect to host :")
+//      val port = scala.io.StdIn.readLine("Connect to port :").toInt
+//      tcpSerial.connect(host,port) match
+//        case Some(e) =>
+//          println(s"Error while connecting to $host:$port: $e")
+//        case None =>
+//          println(s"OK, connected")

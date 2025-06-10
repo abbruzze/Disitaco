@@ -37,9 +37,9 @@ libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.19
 Compile / resourceDirectory := baseDirectory.value / "resources"
 Compile / scalaSource := baseDirectory.value / "src"
 
-val buildsMacDist = taskKey[Unit]("build distribution zip file for ScalaPC")
+val buildsDisitacoDist = taskKey[Unit]("build distribution zip file for ScalaPC")
 
-buildsMacDist := {
+buildsDisitacoDist := {
   def walk(file:File): List[File] = {
     if (file.isDirectory) {
       val files = for(f <- file.listFiles) yield walk(f)
