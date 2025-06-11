@@ -1,6 +1,6 @@
 package ucesoft.disitaco.storage
 
-import ucesoft.disitaco.PCComponent
+import ucesoft.disitaco.{MessageBus, PCComponent}
 import ucesoft.disitaco.chips.i8237
 import ucesoft.disitaco.chips.i8237.DMADevice
 import ucesoft.disitaco.storage.DiskImage.DiskGeometry
@@ -150,6 +150,8 @@ class i8272A(floppyGeometry:DiskGeometry,dma:i8237, dmaChannel:Int, irq: Boolean
   )
 
   import State.*
+  
+  MessageBus.add(this)
 
   private val drives = Array(
     new DiskDrive(0,floppyGeometry,FDC_CLOCK,RPM = 300),
@@ -192,6 +194,13 @@ class i8272A(floppyGeometry:DiskGeometry,dma:i8237, dmaChannel:Int, irq: Boolean
   private var headLoadTime = 0
 
   final def getDrives: Array[DiskDrive] = drives
+
+  override def onMessage(msg: MessageBus.Message): Unit =
+    msg match
+      case MessageBus.Shutdown(_) =>
+        drives.flatMap(_.getDiskInserted).foreach(_.closeAndFlush())
+      case _ =>
+  end onMessage
 
   override final def getProperties: List[PCComponent.Property] =
     import PCComponent.Property

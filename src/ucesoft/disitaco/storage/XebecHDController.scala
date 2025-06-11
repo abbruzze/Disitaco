@@ -1,6 +1,6 @@
 package ucesoft.disitaco.storage
 
-import ucesoft.disitaco.{DipSwitches, PCComponent}
+import ucesoft.disitaco.{DipSwitches, MessageBus, PCComponent}
 import ucesoft.disitaco.chips.i8237
 import ucesoft.disitaco.chips.i8237.DMADevice
 import ucesoft.disitaco.storage.DiskImage.DiskGeometry
@@ -214,10 +214,19 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
   private val lastError = Error(false)
   private var irqActive = false
   private val sectorBuffer = Array.ofDim[Byte](DiskImage.SECTOR_SIZE)
+  
+  MessageBus.add(this)
 
   final def getDrives: Array[DiskDrive] = drives
 
   private inline def millisToCycles(millis:Int): Int = (FDC_CLOCK / 1000.0 * millis).toInt
+
+  override def onMessage(msg: MessageBus.Message): Unit =
+    msg match
+      case MessageBus.Shutdown(_) =>
+        drives.flatMap(_.getDiskInserted).foreach(_.closeAndFlush())
+      case _ =>
+  end onMessage
 
   override final protected def reset(): Unit =
     resetState()

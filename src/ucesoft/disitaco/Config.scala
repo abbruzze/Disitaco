@@ -157,6 +157,16 @@ object Config:
   def getSpeakerBufferMillis: Int = config.getProperty("speaker.audioBufferMillis","5").toInt
   
   def isDebuggerOpenAtStartup: Boolean = config.getProperty("debugger.openAtStartup","false").toBoolean
+
+  def isTurboEnabled: Boolean = config.getProperty("turbo.port") != null
+  def getTurboPort: Int = config.getProperty("turbo.port","68").toInt
+
+  def isHostFTPEnabled: Boolean = config.getProperty("hostftp.enabled","false").toBoolean
+  def getHostFTPCom: Int = config.getProperty("hostftp.com","2").toInt
+
+  def isFastINT13Enabled: Boolean = config.getProperty("fastInt13.enabled","false").toBoolean
+
+  def isFloppyFlushingEnabled: Boolean = config.getProperty("floppy.flushing","false").toBoolean
     
   private def getHomeResource(path:String): Option[Array[Byte]] =
     val filePath = if path.startsWith("/") || path.charAt(1) == ':' then java.nio.file.Paths.get(path) else java.nio.file.Paths.get(homeDir,path)

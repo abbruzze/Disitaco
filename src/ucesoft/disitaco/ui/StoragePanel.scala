@@ -43,13 +43,14 @@ class StoragePanel extends JPanel with DiskDrive.DiskDriveListener:
     init()
 
     private def getInfo: String =
+      val drv = ('A' + index).toChar
       if doubleSide then
         if hardDisk then
-          "[%d] %d-%03d/%02d".format(index, head, track, sector)
+          "[%s] %d-%03d/%02d".format(drv, head, track, sector)
         else
-          "[%d] %d-%02d/%02d".format(index, head, track, sector)
+          "[%s] %d-%02d/%02d".format(drv, head, track, sector)
       else
-        "[%d] %02d/%02d".format(index, track, sector)
+        "[%s] %02d/%02d".format(drv, track, sector)
 
 
     private def init(): Unit =

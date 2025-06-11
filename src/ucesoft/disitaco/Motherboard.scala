@@ -155,7 +155,16 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
 
     if Config.isCGACompositeMonitor then
       videoCard.enableCompositeMonitor(true)
+
+    MessageBus.add(this)
   end init
+
+  override def onMessage(msg: MessageBus.Message): Unit =
+    msg match
+      case MessageBus.WarpMode(_, enabled) =>
+        clock.setWarpMode(enabled)
+      case _ =>
+  end onMessage
 
   private def wiring(): Unit =
     log.info("Wiring components ...")

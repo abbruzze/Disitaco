@@ -1,17 +1,16 @@
 package ucesoft.disitaco
 
-import ucesoft.disitaco.cpu.Registers
+import com.formdev.flatlaf.FlatLightLaf
 import ucesoft.disitaco.debugger.Debugger
-import ucesoft.disitaco.io.LotechEMS
+import ucesoft.disitaco.io.{LotechEMS, Turbo}
 import ucesoft.disitaco.mouse.SerialMouse
-import ucesoft.disitaco.serial.{HostFileTransferSerialDevice, TCPSerialDevice}
-import ucesoft.disitaco.storage.{DiskImage, Fast13IntHandler, FixedDiskImage, FloppyDiskImage}
+import ucesoft.disitaco.serial.HostFileTransferSerialDevice
+import ucesoft.disitaco.storage.{Fast13IntHandler, FixedDiskImage, FloppyDiskImage}
 import ucesoft.disitaco.ui.StoragePanel
 import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
 
 import java.awt.{BorderLayout, Dimension, FlowLayout}
 import java.io.File
-import java.nio.file.Paths
 import javax.swing.*
 
 /**
@@ -20,6 +19,12 @@ import javax.swing.*
  */
 object TestRomDis:
   def main(args:Array[String]): Unit =
+
+    if System.getProperty("swing.defaultlaf") == null then
+      FlatLightLaf.setup()
+      JFrame.setDefaultLookAndFeelDecorated(false)
+      JDialog.setDefaultLookAndFeelDecorated(false)
+      UIManager.setLookAndFeel("com.formdev.flatlaf.FlatDarculaLaf")
 
     Config.loadConfig()
 /*
@@ -57,7 +62,9 @@ object TestRomDis:
     warpButton.setFocusable(false)
     northPanel.add(warpButton)
     frame.getContentPane.add("North",northPanel)
-    warpButton.addActionListener(_ => mother.clock.setWarpMode(warpButton.isSelected))
+    warpButton.addActionListener(_ => {
+      MessageBus.send(MessageBus.WarpMode(this,warpButton.isSelected))
+    })
     infoPanel.add(displayLabel)
     val storagePanel = new StoragePanel
     SwingUtilities.invokeAndWait(() => {
@@ -164,13 +171,28 @@ object TestRomDis:
       else
         mother.com2.ins8250.setDevice(mouse)
 
+    // Turbo
+    if Config.isTurboEnabled then
+      val turbo = new Turbo(Config.getTurboPort)
+      mother.add(turbo)
+      turbo.register(mother.ioHandler)
+
+    // Host ftp
+    if Config.isHostFTPEnabled then
+      val localftp = new HostFileTransferSerialDevice
+      if Config.getHostFTPCom == 1 then
+        mother.com1.ins8250.setDevice(localftp)
+      else
+        mother.com2.ins8250.setDevice(localftp)
+
     mother.videoCard.setClippingOn(on = true)
 
     display.addKeyListener(mother.keyboard)
     display.setFocusable(true)
 
     // Fast13
-    mother.cpu.setInterruptHandler(0x13,new Fast13IntHandler(mother))
+    if Config.isFastINT13Enabled then
+      mother.cpu.setInterruptHandler(0x13,new Fast13IntHandler(mother))
 
     mother.initComponent()
     debugger.setRAM(mem.getRAM)
@@ -187,9 +209,7 @@ object TestRomDis:
       t.printStackTrace()
       sys.exit(1)
     })
-    
-    val localftp = new HostFileTransferSerialDevice
-    mother.com2.ins8250.setDevice(localftp)
+
 
 //    val tcpSerial = new TCPSerialDevice
 //    mother.com2.ins8250.setDevice(tcpSerial)

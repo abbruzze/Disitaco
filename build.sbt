@@ -3,7 +3,7 @@ name := "Disitaco"
 
 version := "1.0"
 
-scalaVersion := "3.7.0"
+scalaVersion := "3.7.1"
 
 scalacOptions ++= Seq(
   "-language:postfixOps",

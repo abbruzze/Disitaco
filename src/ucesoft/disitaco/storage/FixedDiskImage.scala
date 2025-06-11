@@ -62,5 +62,4 @@ class FixedDiskImage(fileName:String,_readOnly:Boolean = false) extends DiskImag
     image.put(offset,data,0,data.length)
 
   override def closeAndFlush(): Unit =
-    println(s"Flushing harddisk $fileName")
     image.force()

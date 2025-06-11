@@ -33,6 +33,7 @@ class Speaker(val sampleRate:Int) extends Audio with Runnable:
 
   setBufferMillisNow(bufferInMillis)
   thread.setPriority(Thread.MAX_PRIORITY)
+  MessageBus.add(this)
 
   override def onMessage(msg: MessageBus.Message): Unit =
     msg match

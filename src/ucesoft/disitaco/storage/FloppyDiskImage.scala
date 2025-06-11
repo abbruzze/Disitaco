@@ -1,6 +1,9 @@
 package ucesoft.disitaco.storage
 
-import java.io.File
+import ucesoft.disitaco.Config
+
+import java.io.{File, IOException}
+import java.nio.file.{Paths, StandardOpenOption}
 import scala.compiletime.uninitialized
 
 /**
@@ -48,4 +51,11 @@ class FloppyDiskImage(fileName:String,_readOnly:Boolean = false) extends DiskIma
     val offset = sectorAbsolutePosition(track,head,sector)
     System.arraycopy(data,0,image,offset,data.length)
   override def closeAndFlush(): Unit =
-    println("TODO closeAndFlush")
+    if !Config.isFloppyFlushingEnabled || !modified then return
+
+    try
+      java.nio.file.Files.write(Paths.get(fileName),image,StandardOpenOption.WRITE)
+    catch
+      case t:IOException =>
+        println(s"Cannot write back image $fileName: " + t)
+
