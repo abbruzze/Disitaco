@@ -17,6 +17,19 @@ class TCPSerialDevice extends INS8250.SerialDevice:
   private var out : OutputStream = uninitialized
   private var in : InputStream = uninitialized
 
+  master.setState("Disconnected")
+
+  def disconnect(): Unit =
+    try
+      if in != null then in.close()
+    catch
+      case _:Throwable =>
+    try
+      if out != null then out.close()
+    catch
+      case _: Throwable =>
+    master.setState("Disconnected")
+
   def connect(host:String,port:Int): Option[String] =
     connectionString = s"$host:$port"
     if in != null then
@@ -27,11 +40,12 @@ class TCPSerialDevice extends INS8250.SerialDevice:
       out = socket.getOutputStream
       in = new BufferedInputStream(socket.getInputStream)
       println(s"Connected to $connectionString")
-
+      master.setState(s"Connected to $connectionString")
       None
     catch
       case e: Exception =>
         println(s"Error while connecting to $connectionString: $e")
+        master.setState(s"Error: $e")
         Some(e.toString)
   end connect
 
@@ -42,6 +56,7 @@ class TCPSerialDevice extends INS8250.SerialDevice:
         out.flush()
       catch
         case _:Throwable =>
+          master.setState("Error while writing..")
 
   override def checkRXByte(): Unit =
       try
@@ -50,6 +65,7 @@ class TCPSerialDevice extends INS8250.SerialDevice:
           master.setRXByte(byte)
       catch
         case _: Throwable =>
+          master.setState("Error while reading..")
 
   override def setMaster(master:SerialMaster): Unit =
     this.master = master

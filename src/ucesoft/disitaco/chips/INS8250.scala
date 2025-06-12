@@ -18,13 +18,17 @@ object INS8250:
     def rlsd(on: Boolean): Unit = {} // Received Line Signal Detect
     def ri(on:Boolean): Unit = {}
     def setRXByte(byte:Int): Unit
+    def setState(state:String): Unit = {}
   trait SignalListener:
-    def dtrChanged(dtr:Boolean): Unit
-    def rtsChanged(rts:Boolean): Unit
-    def ctsChanged(cts:Boolean): Unit
-    def dsrChanged(dsr:Boolean): Unit
-    def rlsdChanged(rlsd:Boolean): Unit
-    def riChanged(ri:Boolean): Unit
+    def dtrChanged(dtr:Boolean): Unit = {}
+    def rtsChanged(rts:Boolean): Unit = {}
+    def ctsChanged(cts:Boolean): Unit = {}
+    def dsrChanged(dsr:Boolean): Unit = {}
+    def rlsdChanged(rlsd:Boolean): Unit = {}
+    def riChanged(ri:Boolean): Unit = {}
+    def txChanged(tx:Boolean): Unit = {}
+    def rxChanged(rx:Boolean): Unit = {}
+    def setState(state:String): Unit = {}
 
 /**
  * @author Alessandro Abbruzzetti
@@ -163,19 +167,7 @@ class INS8250(comIndex:Int,masterClockFreq:Int,irq: Boolean => Unit) extends PCC
 
   private final val signals = Array.ofDim[Boolean](6)
   private var device: SerialDevice = new NULL_DEVICE
-  private var signalListener : SignalListener = new SignalListener:
-    override def dtrChanged(dtr: Boolean): Unit =
-      println(s"Serial: DTR=$dtr")
-    override def rtsChanged(rts: Boolean): Unit =
-      println(s"Serial: RTS=$rts")
-    override def ctsChanged(cts: Boolean): Unit =
-      println(s"Serial: CTS=$cts")
-    override def dsrChanged(dsr: Boolean): Unit =
-      println(s"Serial: DSR=$dsr")
-    override def rlsdChanged(rlsd: Boolean): Unit =
-      println(s"Serial: RLSD=$rlsd")
-    override def riChanged(ri: Boolean): Unit =
-      println(s"Serial: RI=$ri")
+  private var signalListener : SignalListener = new SignalListener {}
 
   private var txShiftRegister = EMPTY_BUFFER
 
@@ -282,6 +274,8 @@ class INS8250(comIndex:Int,masterClockFreq:Int,irq: Boolean => Unit) extends PCC
   override def ri(on: Boolean): Unit =
     setSignal(RI, on)
     if on then registers(REG_MODEM_STATUS) |= 0x40 else registers(REG_MODEM_STATUS) &= ~0x40
+
+  override def setState(state: String): Unit = signalListener.setState(state)
 
   def setDevice(device: SerialDevice): Unit =
     this.device = device
@@ -447,6 +441,7 @@ class INS8250(comIndex:Int,masterClockFreq:Int,irq: Boolean => Unit) extends PCC
       registers(REG_LINE_STATUS) |= LINE_STATUS_DATA_READY
       registers(REG_RECEIVER_BUFFER) = byte
       checkIRQ(enableMask = INT_MASK_REC_DATA)
+    signalListener.rxChanged(true)
   end setRXByte
 
   final def clock(): Unit =
@@ -458,6 +453,7 @@ class INS8250(comIndex:Int,masterClockFreq:Int,irq: Boolean => Unit) extends PCC
 
   private def tick(): Unit =
     if registers(REG_TRANSMITTER_BUFFER) != EMPTY_BUFFER && txShiftRegister == EMPTY_BUFFER then
+      signalListener.txChanged(true)
       txShiftRegister = registers(REG_TRANSMITTER_BUFFER)
       registers(REG_TRANSMITTER_BUFFER) = EMPTY_BUFFER
       registers(REG_LINE_STATUS) |= LINE_STATUS_TX_EMPTY
@@ -481,7 +477,9 @@ class INS8250(comIndex:Int,masterClockFreq:Int,irq: Boolean => Unit) extends PCC
           txByteCount += 1
           txShiftRegister = EMPTY_BUFFER
           registers(REG_LINE_STATUS) |= LINE_STATUS_TX_SH_EMPTY
+          signalListener.txChanged(false)
 
+        signalListener.rxChanged(false)
         device.checkRXByte()
   end tick
 

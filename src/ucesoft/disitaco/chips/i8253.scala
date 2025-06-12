@@ -26,8 +26,8 @@ class i8253 extends PCComponent:
     private inline val low = false
     private inline val high = true
 
-    private var rwCounter = 0
-    private var rCounter = 0
+    private var writeFlag = 0
+    private var readFlag = 0
     private var controlWord = 0
     private var rwMode : ReadWriteMode = CounterLatchMode
     private var latch = 0
@@ -50,7 +50,7 @@ class i8253 extends PCComponent:
       val list = new ListBuffer[Property]
       list += Property(s"Counter #$counterID counter",counter.toString)
       list += Property(s"Counter #$counterID latch",latch.toString)
-      list += Property(s"Counter #$counterID f/f",rCounter.toString)
+      list += Property(s"Counter #$counterID f/f",readFlag.toString)
       list += Property(s"Counter #$counterID rw mode",rwMode.toString)
       list += Property(s"Counter #$counterID mode",mode.id.toString)
       list += Property(s"Counter #$counterID gate",gate.toString)
@@ -58,7 +58,7 @@ class i8253 extends PCComponent:
       list.toList
 
     def reset(): Unit =
-      rCounter = 0
+      readFlag = 0
       controlWord = 0
       rwMode = CounterLatchMode
       latch = 0
@@ -99,12 +99,12 @@ class i8253 extends PCComponent:
         case MSB =>
           (toBeRead >> 8) & 0xFF
         case LSB_MSB =>
-          val value = rCounter match
+          val value = readFlag match
             case 0 =>
               toBeRead & 0xFF
             case 1 =>
               (toBeRead >> 8) & 0xFF
-          rCounter = (rCounter + 1) & 1
+          readFlag ^= 1
           value
         case _ =>
           0
@@ -131,7 +131,8 @@ class i8253 extends PCComponent:
       else
         controlWord = cw
         rwMode = ReadWriteMode.fromOrdinal((cw >> 4) & 3)
-        rwCounter = 0
+        writeFlag = 0
+        readFlag = 0
         val modeValue = (cw >> 1) & 7
         if modeValue > 5 then
           log.error("Counter[%d] controlWord=%02X invalid mode=%d",counterID,controlWord,modeValue)
@@ -193,7 +194,7 @@ class i8253 extends PCComponent:
             newCounterWritten()
             log.info("Counter[%d](mode=%d) set(MSB) counter to %04X",counterID,id,latch)
           case LSB_MSB =>
-            rwCounter match
+            writeFlag match
               case 0 =>
                 latch = (latch & 0xFF00) | (value & 0xFF)
                 firstByteOfNewCounterWritten()
@@ -201,7 +202,7 @@ class i8253 extends PCComponent:
                 latch = (latch & 0x00FF) | (value & 0xFF) << 8
                 newCounterWritten()
                 log.info("Counter[%d](mode=%d) set(LSB_MSB) counter to %04X",counterID,id,latch)
-            rwCounter ^= 1
+            writeFlag ^= 1
           case _ =>
       end writeCounter
 

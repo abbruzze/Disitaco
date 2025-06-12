@@ -24,7 +24,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
 
   private final val clockFrequency = Config.getClockFrequency
   private final val clockAccRatio = clockFrequency.toDouble / DEFAULT_CLOCK_FREQ
-  private final val SPEAKER_SAMPLE_CYCLES = clockFrequency / SPEAKER_AUDIO_RATE
+  private final val SPEAKER_SAMPLE_CYCLES = ((DEFAULT_CLOCK_FREQ / SPEAKER_AUDIO_RATE) * clockAccRatio).toInt
   private final val i8253Cycles = 4 * clockAccRatio // 4.77 / 4
   private final val fdcHdcCycles = if clockFrequency == DEFAULT_CLOCK_FREQ then 2 else 1
   private final val cpuCorrFactor = Config.getCPUCorrectionFactor
@@ -32,7 +32,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   final val floppyDrives = 2
   final val hardDisks = Config.getHDImages.size
 
-  final val clock = new Clock("MasterClock",DEFAULT_CLOCK_FREQ)
+  final val clock = new Clock("MasterClock",clockFrequency)
   final val memory = new MMU(Config.getMemoryInKBytes)
   final val dma = new DMA(memory)
   final val pic = new PIC

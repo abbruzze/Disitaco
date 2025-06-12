@@ -6,7 +6,7 @@ import ucesoft.disitaco.io.{LotechEMS, Turbo}
 import ucesoft.disitaco.mouse.SerialMouse
 import ucesoft.disitaco.serial.HostFileTransferSerialDevice
 import ucesoft.disitaco.storage.{Fast13IntHandler, FixedDiskImage, FloppyDiskImage}
-import ucesoft.disitaco.ui.StoragePanel
+import ucesoft.disitaco.ui.{SerialsDialog, StoragePanel}
 import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
 
 import java.awt.{BorderLayout, Dimension, FlowLayout}
@@ -184,6 +184,12 @@ object TestRomDis:
         mother.com1.ins8250.setDevice(localftp)
       else
         mother.com2.ins8250.setDevice(localftp)
+
+    // Serial signals
+    val serialDialog = new SerialsDialog(frame,() => {})
+    mother.com1.ins8250.setSignalListener(serialDialog.com1)
+    mother.com2.ins8250.setSignalListener(serialDialog.com2)
+    //serialDialog.dialog.setVisible(true)
 
     mother.videoCard.setClippingOn(on = true)
 

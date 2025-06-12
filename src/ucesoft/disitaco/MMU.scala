@@ -11,7 +11,7 @@ import ucesoft.mac.Version
 class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
   override val componentName = "MMU"
 
-  private val BOOT_MESSAGE = s"Welcome to Disitaco Emulator ver ${Version.VERSION}"
+  private val BOOT_MESSAGE = s"Welcome to Disitaco Emulator ver ${Version.VERSION} clocked at ${"%1.2fMhz".format(Config.getClockFrequency / 1000000.0)}"
 
   private val mem = Array.ofDim[Byte](memorySizeInK * 1024)
   private val rom = Array.ofDim[Byte](0x10000)
@@ -116,7 +116,7 @@ class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
       case 0xB =>
         val vaddress = address & 0xFFFF
         if vaddress >= videoMemAddress && vaddress < videoMemEndAddress then
-          if !bootMessage && vaddress - videoMemAddress == 80 && value == 32 then
+          if !bootMessage && vaddress - videoMemAddress == 160 && value == 32 then
             bootMessage = true
             showBootMessage()
           videoMem(vaddress - videoMemAddress) = value.asInstanceOf[Byte]
@@ -130,9 +130,10 @@ class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
   private def showBootMessage(): Unit =
     var address = 0
     var i = 0
+    val attribute : Byte = if videoCardSupportsColors then 0b0010 else 0b1111
     while i < BOOT_MESSAGE.length do
       videoMem(address) = BOOT_MESSAGE.charAt(i).toByte
-      videoMem(address + 1) = if videoCardSupportsColors then 0b0010 else 0b1111
+      videoMem(address + 1) = attribute
       address += 2
       i += 1
     end while
