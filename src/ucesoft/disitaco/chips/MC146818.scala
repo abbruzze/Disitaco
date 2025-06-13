@@ -132,7 +132,7 @@ class MC146818(clock:Clock) extends PCComponent with Clock.Clockable:
     ram(reg) = fromBCD(value,bcd)
     writeTime()
     log.info("%s write time reg %d = %02X (%02X) BCD=%b",componentName,reg,ram(reg),value,bcd)
-    printf("%s write time reg %d = %02X (%02X) BCD=%b\n",componentName,reg,ram(reg),value,bcd)
+    //printf("%s write time reg %d = %02X (%02X) BCD=%b\n",componentName,reg,ram(reg),value,bcd)
 
   private def writeStatusRegister(reg:Int,value:Int): Unit =
     reg match

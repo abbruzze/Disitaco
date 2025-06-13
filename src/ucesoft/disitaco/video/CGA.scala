@@ -123,6 +123,16 @@ class CGA extends VideoCard6845:
     0x07	// Cursor end:                7 scanlines
   )
 
+  override final def readVideoRAM(address: Int): Int =
+    if address >= 0xB8000 && address < 0xBC000 then
+      ram(address & 0x3FFF)
+    else
+      0xFF
+
+  override final def writeVideoRAM(address: Int, value: Int): Unit =
+    if address >= 0xB8000 && address < 0xBC000 then
+      ram(address & 0x3FFF) = value.asInstanceOf[Byte]
+
   override protected def getModeListenerNotification: String =
     if getMode == DrawMode.TEXT then
       s"CGA TEXT MODE (${regs(1)} x $getVisibleTextRows)"
@@ -137,7 +147,7 @@ class CGA extends VideoCard6845:
   // ========================= Card Info ======================================
   //  In 320x200 and 40x25 text mode (which has the equivalent resolution), a 7.16MHz dot clock is used
   override def getPixelClockFrequencyHz: Double = if _40ColMode || resolution == MEDIUM_RES then 14_318_000 >> 1 else 14_318_000
-  override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(ram, mainMemoryOffset = 0xB_8000,dipSwitch54 = 0b10,supportColors = true)
+  override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(mainMemoryOffset = 0xB_8000,dipSwitch54 = 0b10,supportColors = true)
   override def getPreferredSize: Dimension = new Dimension(912,262)
   override def getPreferredZoomY: Double = 2.0
   // ========================= Drawing ========================================

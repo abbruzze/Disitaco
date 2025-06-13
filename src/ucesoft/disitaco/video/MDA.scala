@@ -28,6 +28,16 @@ class MDA extends VideoCard6845:
 
   override def getProperties: List[PCComponent.Property] = PCComponent.Property("Last bit",lastBit.toString) :: super.getProperties
 
+  override final def readVideoRAM(address: Int): Int =
+    if address >= 0xB0000 && address < 0xB1000 then
+      ram(address & 0xFFF)
+    else
+      0xFF
+
+  override final def writeVideoRAM(address: Int, value: Int): Unit =
+    if address >= 0xB0000 && address < 0xB1000 then
+      ram(address & 0xFFF) = value.asInstanceOf[Byte]
+
   // ========================= Borders & clips ================================
   override protected def getHSyncOffset: Int = 7
   override protected def getYSyncOffset: Int = 0
@@ -52,7 +62,7 @@ class MDA extends VideoCard6845:
   )
   // ========================= Card Info ======================================
   override def getPixelClockFrequencyHz: Double = 16_257_000
-  override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(ram,mainMemoryOffset = 0xB_0000,dipSwitch54 = 0b11,supportColors = false)
+  override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(mainMemoryOffset = 0xB_0000,dipSwitch54 = 0b11,supportColors = false)
   override def getPreferredSize: Dimension = new Dimension(882,370)
   // ========================= Drawing ========================================
   private def fetchGFXAndAttrs(): Unit =

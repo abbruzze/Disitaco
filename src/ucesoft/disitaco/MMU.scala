@@ -4,6 +4,8 @@ import ucesoft.disitaco.cpu.Memory
 import ucesoft.disitaco.video.VideoCard
 import ucesoft.mac.Version
 
+import scala.compiletime.uninitialized
+
 /**
  * @author Alessandro Abbruzzetti
  *         Created on 13/03/2025 18:55  
@@ -15,16 +17,15 @@ class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
 
   private val mem = Array.ofDim[Byte](memorySizeInK * 1024)
   private val rom = Array.ofDim[Byte](0x10000)
-  private var videoMem : Array[Byte] = Array()
-  private var videoMemAddress = 0
-  private var videoMemEndAddress = 0
   private var videoCardSupportsColors = false
+  private var videoCard : VideoCard = uninitialized
 
   private val optionRoms = Array.ofDim[Byte](128 * 1024)
 
   private val emsHandler = Array.ofDim[Memory](0x10)
 
-  private var bootMessage = false
+  private var waitingBootMessage = true
+  private var bootMessageSpaceCount = 0
   
   final def getRAM: Array[Byte] = mem
   final def getROM: Array[Byte] = rom
@@ -32,9 +33,7 @@ class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
   final def setVideoCard(video:VideoCard): Unit =
     val info = video.getCardInfo
     videoCardSupportsColors = info.supportColors
-    videoMem = info.ram
-    videoMemAddress = info.mainMemoryOffset & 0xFFFF
-    videoMemEndAddress = videoMemAddress + videoMem.length
+    videoCard = video
 
   def loadROM(rom:Array[Byte]): Unit =
     val startAddress = 0x10000 - rom.length
@@ -80,12 +79,8 @@ class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
       else
         0xFF
     else block match
-      case 0xB =>
-        val vaddress = address & 0xFFFF
-        if vaddress >= videoMemAddress && vaddress < videoMemEndAddress then
-          videoMem(vaddress - videoMemAddress) & 0xFF
-        else
-          0xFF
+      case 0xA|0xB =>
+        videoCard.readVideoRAM(address)
       case 0xC =>
         optionRoms(address & 0xFFFF) & 0xFF
       case 0xD =>
@@ -113,13 +108,14 @@ class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
       if address < mem.length then
         mem(address) = value.asInstanceOf[Byte]
     else block match
-      case 0xB =>
-        val vaddress = address & 0xFFFF
-        if vaddress >= videoMemAddress && vaddress < videoMemEndAddress then
-          if !bootMessage && vaddress - videoMemAddress == 160 && value == 32 then
-            bootMessage = true
-            showBootMessage()
-          videoMem(vaddress - videoMemAddress) = value.asInstanceOf[Byte]
+      case 0xA|0xB =>
+          videoCard.writeVideoRAM(address,value)
+          if waitingBootMessage then
+            if value == 32 then
+              bootMessageSpaceCount += 1
+              if bootMessageSpaceCount == 160 then
+                waitingBootMessage = false
+                showBootMessage()
       case _ =>
         log.warning("Writing to an unhandled address: %05X = %02X",address,value)
 
@@ -128,12 +124,12 @@ class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
     writeByte(physicalAddress(address,incOfs = true),(value >> 8).asInstanceOf[Byte], abs = true)
 
   private def showBootMessage(): Unit =
-    var address = 0
+    var address = videoCard.getCardInfo.mainMemoryOffset
     var i = 0
-    val attribute : Byte = if videoCardSupportsColors then 0b0010 else 0b1111
+    val attribute = if videoCardSupportsColors then 0b0010 else 0b1111
     while i < BOOT_MESSAGE.length do
-      videoMem(address) = BOOT_MESSAGE.charAt(i).toByte
-      videoMem(address + 1) = attribute
+      videoCard.writeVideoRAM(address,BOOT_MESSAGE.charAt(i))
+      videoCard.writeVideoRAM(address + 1,attribute)
       address += 2
       i += 1
     end while

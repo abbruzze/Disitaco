@@ -11,7 +11,7 @@ import java.awt.Dimension
  *         Created on 04/04/2025 16:34  
  */
 object VideoCard:
-  case class CardInfo(ram:Array[Byte],mainMemoryOffset:Int,dipSwitch54:Int,supportColors:Boolean)
+  case class CardInfo(mainMemoryOffset:Int,dipSwitch54:Int,supportColors:Boolean)
 
   trait VideoCardListener:
     def modeChanged(mode:String,screenWidth:Int,screenHeight:Int): Unit
@@ -30,3 +30,6 @@ trait VideoCard extends IODevice with VideoFrameProducer:
   def getPreferredZoomY: Double = 1.0
 
   def setClippingOn(on:Boolean): Unit
+  
+  def writeVideoRAM(address:Int,value:Int): Unit
+  def readVideoRAM(address:Int): Int
