@@ -134,6 +134,9 @@ object Config:
       case None =>
         Nil
 
+  def getHDDriveCSizeInMb: Int = config.getProperty("hd.c.size","10").toInt
+  def getHDDriveDSizeInMb: Int = config.getProperty("hd.d.size","10").toInt
+
   def getFloppyAImage: Option[String] = Option(config.getProperty("floppy.a.image"))
   def getFloppyBImage: Option[String] = Option(config.getProperty("floppy.b.image"))
 

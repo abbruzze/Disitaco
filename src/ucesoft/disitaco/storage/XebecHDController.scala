@@ -1,6 +1,6 @@
 package ucesoft.disitaco.storage
 
-import ucesoft.disitaco.{DipSwitches, MessageBus, PCComponent}
+import ucesoft.disitaco.{Config, DipSwitches, MessageBus, PCComponent}
 import ucesoft.disitaco.chips.i8237
 import ucesoft.disitaco.chips.i8237.DMADevice
 import ucesoft.disitaco.storage.DiskImage.DiskGeometry
@@ -175,8 +175,8 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
   private inline val ERROR_NOT_READY = 0b00_0100 // After the controller selected the drive, the drive did not respond with a ready signal.
 
   private val drives = Array(
-    new DiskDrive(diskIDOffset, DiskImage.geoHD10M, FDC_CLOCK, RPM = RPM ,isFixedDrive = true),
-    new DiskDrive(diskIDOffset + 1, DiskImage.geoHD10M, FDC_CLOCK, RPM = RPM, isFixedDrive = true)
+    new DiskDrive(diskIDOffset,if Config.getHDDriveCSizeInMb == 10 then DiskImage.geoHD10M else DiskImage.geoHD24M, FDC_CLOCK, RPM = RPM ,isFixedDrive = true),
+    new DiskDrive(diskIDOffset + 1,if Config.getHDDriveDSizeInMb == 10 then DiskImage.geoHD10M else DiskImage.geoHD24M, FDC_CLOCK, RPM = RPM, isFixedDrive = true)
   )
   /*
     Active after SEL has been sent
@@ -200,12 +200,17 @@ class XebecHDController(dma:i8237, dmaChannel:Int, irq: Boolean => Unit,diskIDOf
   private val trackStepMillis = millisToCycles(3) // 3 ms
 
   /*
-    00 = 20M (306,8,17) Drive table 3
-    01 = 20M (615,4,17) Drive table 2
+    00 = 20M (306,8,17) Drive table 3 (type 16)
+    //01 = 20M (615,4,17) Drive table 2 (type 2)
+    01 = 24M (374,8,17)
     10 = 20M (612,4,17) Drive table 1
     11 = 10M (306,4,17) Drive table 0
   */
-  private val dipSwitches = new DipSwitches(1,0b1111)
+  private val dipSwitches = {
+    val cSize = if Config.getHDDriveCSizeInMb == 10 then 0b11 else 0b01
+    val dSize = if Config.getHDDriveDSizeInMb == 10 then 0b11 else 0b01
+    new DipSwitches(1,cSize << 2 | dSize)
+  }
   private val driveChars = DriveCharacteristics(0,0)
   private var state : State = Reset
   private var pendingCommand : Command = noCommand

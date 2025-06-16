@@ -21,12 +21,12 @@ object DiskImage:
   final val HD_GEOMETRY_MAP = Map(
     10_404 * 1024 -> DiskGeometry(tracks = 306,heads = 4, sectorsPerTrack = 17, label = "10MHD"),
     20_910 * 1024 -> DiskGeometry(tracks = 615,heads = 4, sectorsPerTrack = 17, label = "20MHD"), // type 2
-    20_808 * 1024 -> DiskGeometry(tracks = 612,heads = 4, sectorsPerTrack = 17, label = "20'MHD"),// type 16
+    25_432 * 1024 -> DiskGeometry(tracks = 374,heads = 8, sectorsPerTrack = 17, label = "25MHD"),// type 16
   )
 
   final val geoHD10M : DiskGeometry = HD_GEOMETRY_MAP(10_404 * 1024)
   final val geoHD20M : DiskGeometry = HD_GEOMETRY_MAP(20_910 * 1024)
-  final val geoHD20_M : DiskGeometry = HD_GEOMETRY_MAP(20_808 * 1024)
+  final val geoHD24M : DiskGeometry = HD_GEOMETRY_MAP(25_432 * 1024)
 
   final val geo160K: DiskGeometry  = FLOPPY_GEOMETRY_MAP(160 * 1024)
   final val geo180K: DiskGeometry  = FLOPPY_GEOMETRY_MAP(180 * 1024)
