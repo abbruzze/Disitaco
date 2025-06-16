@@ -80,7 +80,7 @@ class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
         0xFF
     else block match
       case 0xA|0xB =>
-        videoCard.readVideoRAM(address)
+        videoCard.readVideoRAM(address) & 0xFF
       case 0xC =>
         optionRoms(address & 0xFFFF) & 0xFF
       case 0xD =>
