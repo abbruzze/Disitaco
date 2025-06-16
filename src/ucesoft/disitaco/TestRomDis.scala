@@ -5,7 +5,7 @@ import ucesoft.disitaco.debugger.Debugger
 import ucesoft.disitaco.io.{LotechEMS, Turbo}
 import ucesoft.disitaco.mouse.SerialMouse
 import ucesoft.disitaco.serial.HostFileTransferSerialDevice
-import ucesoft.disitaco.storage.{Fast13IntHandler, FixedDiskImage, FloppyDiskImage}
+import ucesoft.disitaco.storage.{Fast13IntHandler, FixedDiskImage, FloppyDiskImage, LocalDirectoryFloppyDiskImage}
 import ucesoft.disitaco.ui.{SerialsDialog, StoragePanel}
 import ucesoft.disitaco.{Display, Logger, MessageBus, Motherboard}
 
@@ -89,6 +89,16 @@ object TestRomDis:
         fc.showOpenDialog(frame) match
           case JFileChooser.APPROVE_OPTION =>
             val image = new FloppyDiskImage(fc.getSelectedFile.toString)
+            lastDir = fc.getSelectedFile.getParentFile
+            mother.fdc.fdc.getDrives(diskId).insertDisk(image)
+          case _ =>
+      override def openDirectory(diskId: Int): Unit =
+        val fc = new JFileChooser()
+        fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY)
+        fc.setCurrentDirectory(lastDir)
+        fc.showOpenDialog(frame) match
+          case JFileChooser.APPROVE_OPTION =>
+            val image = new LocalDirectoryFloppyDiskImage(fc.getSelectedFile.toString)
             lastDir = fc.getSelectedFile.getParentFile
             mother.fdc.fdc.getDrives(diskId).insertDisk(image)
           case _ =>

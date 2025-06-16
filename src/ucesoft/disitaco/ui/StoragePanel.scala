@@ -7,6 +7,7 @@ import javax.swing.*
 
 object StoragePanel:
   trait StorageListener:
+    def openDirectory(diskId:Int): Unit
     def openImage(diskId:Int): Unit
     def ejectImage(diskId:Int): Unit
 /**
@@ -24,8 +25,9 @@ class StoragePanel extends JPanel with DiskDrive.DiskDriveListener:
   private val hdWrite = new ImageIcon(getClass.getResource("/resources/hd_write.png"))
 
   private var listener : StorageListener = new StorageListener:
-    override def openImage(diskId: Int): Unit = println(s"Load#$diskId")
-    override def ejectImage(diskId: Int): Unit = println(s"Eject$diskId")
+    override def openImage(diskId: Int): Unit = {}
+    override def ejectImage(diskId: Int): Unit = {}
+    override def openDirectory(diskId: Int): Unit = {}
 
 
   private class Diskette(val index:Int,val hardDisk:Boolean) extends JPanel:
@@ -62,11 +64,14 @@ class StoragePanel extends JPanel with DiskDrive.DiskDriveListener:
       if !hardDisk then
         val popup = new JPopupMenu()
         val load = new JMenuItem("Open image",new ImageIcon(getClass.getResource("/resources/open-folder.png")))
+        val loadDir = new JMenuItem("Open local directory as 1.44M disk",new ImageIcon(getClass.getResource("/resources/open-directory.png")))
         load.addActionListener(_ => listener.openImage(index))
+        loadDir.addActionListener(_ => listener.openDirectory(index))
         eject.addActionListener(_ => listener.ejectImage(index))
         eject.setEnabled(false)
 
         popup.add(load)
+        popup.add(loadDir)
         popup.add(eject)
 
         setComponentPopupMenu(popup)
