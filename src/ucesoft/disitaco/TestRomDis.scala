@@ -149,8 +149,20 @@ object TestRomDis:
         mother.hdc.hdFdc.getDrives(i).insertDisk(new FixedDiskImage(Config.getAbsolutePath(hdd)))
 
     // Floppy
-    Config.getFloppyAImage.foreach(f => mother.fdc.fdc.getDrives(0).insertDisk(new FloppyDiskImage(Config.getAbsolutePath(f))))
-    Config.getFloppyBImage.foreach(f => mother.fdc.fdc.getDrives(1).insertDisk(new FloppyDiskImage(Config.getAbsolutePath(f))))
+    Config.getFloppyAImage.foreach(f => {
+      val file = new File(Config.getAbsolutePath(f))
+      if file.isDirectory then
+        mother.fdc.fdc.getDrives(0).insertDisk(new LocalDirectoryFloppyDiskImage(Config.getAbsolutePath(f)))
+      else
+        mother.fdc.fdc.getDrives(0).insertDisk(new FloppyDiskImage(Config.getAbsolutePath(f)))
+    })
+    Config.getFloppyBImage.foreach(f => {
+      val file = new File(Config.getAbsolutePath(f))
+      if file.isDirectory then
+        mother.fdc.fdc.getDrives(1).insertDisk(new LocalDirectoryFloppyDiskImage(Config.getAbsolutePath(f)))
+      else
+        mother.fdc.fdc.getDrives(1).insertDisk(new FloppyDiskImage(Config.getAbsolutePath(f)))
+    })
 
 //    val glatick = java.nio.file.Files.readAllBytes(Paths.get("""G:\My Drive\Emulatori\x86\dos\GLaTICK_0.8.5_AT.ROM"""))
 //    mem.registerOptionROM(0xD2000,glatick,"Glatick")

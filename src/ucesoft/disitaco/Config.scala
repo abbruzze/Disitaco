@@ -104,9 +104,11 @@ object Config:
   def getEMSLotechPort: Int = Integer.parseInt(config.getProperty("ems.lotech.port","260"),16)
   def getEMSLotechAddressPage: Int = Integer.parseInt(config.getProperty("ems.lotech.address","E0000"),16) >> 16
 
-  def getFloppyGeometry: DiskImage.DiskGeometry =
+  def getFloppyAGeometry: DiskImage.DiskGeometry = getFloppyGeometry(a = true)
+  def getFloppyBGeometry: DiskImage.DiskGeometry = getFloppyGeometry(a = false)
+  private def getFloppyGeometry(a:Boolean): DiskImage.DiskGeometry =
     import DiskImage.*
-    config.getProperty("floppy.controller.geometry","720k").toUpperCase() match {
+    config.getProperty(if a then "floppy.a.geometry" else "floppy.b.geometry","720k").toUpperCase() match {
       case "160K" => geo160K
       case "180K" => geo180K
       case "320K" => geo320K

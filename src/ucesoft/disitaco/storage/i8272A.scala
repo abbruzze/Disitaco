@@ -28,7 +28,7 @@ import scala.collection.mutable.ListBuffer
  * This arrangement made it impossible to use overlapped seeks because the FDC could not rotate the drive selection.
  * This design (apart from the drive ready signal tied high) also precluded the use of drive polling, which likewise required the FDC to change drive selection.
  */
-class i8272A(floppyGeometry:DiskGeometry,dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponent with DMADevice:
+class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237, dmaChannel:Int, irq: Boolean => Unit) extends PCComponent with DMADevice:
   override protected val icon = new ImageIcon(getClass.getResource("/resources/trace/fdc.png"))
   override protected val componentName = "NEC_PD765"
 
@@ -154,10 +154,10 @@ class i8272A(floppyGeometry:DiskGeometry,dma:i8237, dmaChannel:Int, irq: Boolean
   MessageBus.add(this)
 
   private val drives = Array(
-    new DiskDrive(0,floppyGeometry,FDC_CLOCK,RPM = 300),
-    new DiskDrive(1,floppyGeometry,FDC_CLOCK,RPM = 300),
-    new DiskDrive(2,floppyGeometry,FDC_CLOCK,RPM = 300),
-    new DiskDrive(3,floppyGeometry,FDC_CLOCK,RPM = 300)
+    new DiskDrive(0,floppyAGeometry,FDC_CLOCK,RPM = 300),
+    new DiskDrive(1,floppyBGeometry,FDC_CLOCK,RPM = 300),
+    new DiskDrive(2,floppyAGeometry,FDC_CLOCK,RPM = 300),
+    new DiskDrive(3,floppyBGeometry,FDC_CLOCK,RPM = 300)
   )
 
   private var state = Idle

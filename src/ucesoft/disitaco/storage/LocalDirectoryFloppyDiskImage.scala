@@ -13,11 +13,15 @@ class LocalDirectoryFloppyDiskImage(directory:String) extends DiskImage:
   private def sectorAbsolutePosition(track: Int, head: Int, sector: Int): Int =
     (track * geometry.heads + head) * geometry.sectorsPerTrack + sector - 1
 
-  override def isReadOnly: Boolean = true
+  override def isReadOnly: Boolean = false
   override def diskName: String = directory
   override def diskGeometry: DiskImage.DiskGeometry = geometry
   override def readSector(track: Int, head: Int, sector: Int): Iterator[Byte] =
     val sec = fat12DiskBuilder.getSector(sectorAbsolutePosition(track,head,sector))
     sec.iterator
-  override def writeSector(track: Int, head: Int, sector: Int, data: Array[Byte]): Unit = {}
-  override def closeAndFlush(): Unit = {}
+  override def writeSector(track: Int, head: Int, sector: Int, data: Array[Byte]): Unit =
+    fat12DiskBuilder.setSector(sectorAbsolutePosition(track,head,sector),data)
+  override def closeAndFlush(): Unit =
+    val dir = new File(directory)
+    dir.listFiles().filterNot(_.isDirectory).foreach(_.delete())
+    fat12DiskBuilder.extractAllFilesToHostDirectory(dir)

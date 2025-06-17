@@ -42,7 +42,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   final val cpu = new i8088(memory,ioHandler,pic.pic)
   final val keyboard = new Keyboard(clock,pic.pic.setIRQ(1,_)) // keyboard sends interrupt to line 1
   final val videoCard = Config.getVideoCard
-  final val fdc = new FDC(Config.getFloppyGeometry,dma.dma,2,pic.pic.setIRQ(6,_)) // fdc sends interrupt to line 6
+  final val fdc = new FDC(Config.getFloppyAGeometry,Config.getFloppyBGeometry,dma.dma,2,pic.pic.setIRQ(6,_)) // fdc sends interrupt to line 6
   final val hdc : HardDiskFDC = if Config.isHDConfigured then
     new HardDiskFDC(dma.dma,3,pic.pic.setIRQ(5,_),diskIDOffset = 2,numberOfHDDrives = hardDisks) // hdc sends interrupt to line 5
   else

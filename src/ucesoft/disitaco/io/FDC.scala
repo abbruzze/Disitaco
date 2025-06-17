@@ -8,9 +8,9 @@ import ucesoft.disitaco.storage.i8272A
  * @author Alessandro Abbruzzetti
  *         Created on 18/04/2025 16:10  
  */
-class FDC(floppyGeometry:DiskGeometry,dma:i8237,dmaChannel:Int,irq:Boolean => Unit) extends IODevice:
+class FDC(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237,dmaChannel:Int,irq:Boolean => Unit) extends IODevice:
   override protected val componentName = "FDC"
-  final val fdc = new i8272A(floppyGeometry,dma,dmaChannel,irq)
+  final val fdc = new i8272A(floppyAGeometry,floppyBGeometry,dma,dmaChannel,irq)
 
   add(fdc)
 

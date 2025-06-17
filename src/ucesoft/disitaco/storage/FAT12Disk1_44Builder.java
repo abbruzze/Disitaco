@@ -1,9 +1,9 @@
 package ucesoft.disitaco.storage;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -43,6 +43,12 @@ public class FAT12Disk1_44Builder {
 
     public byte[] getSector(int n) {
         return (n >= 0 && n < sectors.length) ? sectors[n] : new byte[SECTOR_SIZE];
+    }
+
+    public void setSector(int n,byte[] sec) {
+        if (n >= 0 && n < sectors.length) {
+            sectors[n] = sec;
+        }
     }
 
     private void scanFiles() {
@@ -169,9 +175,23 @@ public class FAT12Disk1_44Builder {
             base = String.format("%-8s", name).substring(0, 8);
         }
 
+        var data = Instant.ofEpochMilli(file.lastModified()).atZone(ZoneId.systemDefault()).toLocalDateTime();
+        int dosTime = (data.getHour() << 11) | (data.getMinute() << 5) | (data.getSecond() / 2);
+        int dosDate = ((data.getYear() - 1980) << 9) | (data.getMonthValue() << 5) | data.getDayOfMonth();
+
         System.arraycopy(base.getBytes(), 0, entry, 0, 8);
         System.arraycopy(ext.getBytes(), 0, entry, 8, 3);
         entry[11] = 0x20; // archive
+        entry[14] = (byte) (dosTime & 0xFF);
+        entry[15] = (byte) ((dosTime >> 8) & 0xFF);
+        entry[16] = (byte) (dosDate & 0xFF);
+        entry[17] = (byte) ((dosDate >> 8) & 0xFF);
+        entry[18] = entry[16];
+        entry[19] = entry[17];
+        entry[22] = entry[14];
+        entry[23] = entry[15];
+        entry[24] = entry[16];
+        entry[25] = entry[17];
         long size = file.length();
         entry[26] = (byte) (startCluster & 0xFF);
         entry[27] = (byte) ((startCluster >> 8) & 0xFF);
@@ -192,5 +212,78 @@ public class FAT12Disk1_44Builder {
             fat[offset + 1] = (byte) ((value >> 4) & 0xFF);
         }
     }
+
+    private int readFAT12Entry(int cluster) {
+        int fatOffset = (cluster * 3) / 2;
+        int fatStartSector = 1; // FAT1 starts at sector 1 (LBA)
+        int sectorIndex = fatStartSector + (fatOffset / 512);
+        int offsetInSector = fatOffset % 512;
+
+        byte[] sector = getSector(sectorIndex);
+        byte b1 = sector[offsetInSector];
+        byte b2 = getSector(sectorIndex + ((offsetInSector + 1) / 512))[(offsetInSector + 1) % 512];
+
+        int value;
+        if ((cluster & 1) == 0) {
+            value = ((b1 & 0xFF) | ((b2 & 0x0F) << 8));
+        } else {
+            value = (((b1 & 0xF0) >> 4) | ((b2 & 0xFF) << 4));
+        }
+
+        return value & 0xFFF;
+    }
+
+    public void extractAllFilesToHostDirectory(File outputDir) throws IOException {
+        final int ROOT_DIR_SECTORS = 14; // (224 entries * 32 bytes) / 512
+        final int DATA_START_LBA = 33;   // settore dati dopo boot + 2 FAT + root dir
+
+        int rootStartLBA = 1 + 9 * 2; // boot + 2 FAT da 9 settori
+
+        for (int i = 0; i < ROOT_DIR_SECTORS; i++) {
+            byte[] sector = getSector(rootStartLBA + i);
+            for (int offset = 0; offset < 512; offset += 32) {
+                byte firstByte = sector[offset];
+                if (firstByte == 0x00 || (firstByte & 0xFF) == 0xE5) continue;
+
+                int attrib = sector[offset + 11] & 0xFF;
+                if ((attrib & 0x08) != 0 || (attrib & 0x10) != 0) continue; // skip label or directory
+
+                String name = new String(sector, offset, 8).trim();
+                String ext = new String(sector, offset + 8, 3).trim();
+                String filename = name + (ext.isEmpty() ? "" : "." + ext);
+
+                int startCluster = ((sector[offset + 27] & 0xFF) << 8) | (sector[offset + 26] & 0xFF);
+                int fileSize =  ((sector[offset + 31] & 0xFF) << 24)
+                        | ((sector[offset + 30] & 0xFF) << 16)
+                        | ((sector[offset + 29] & 0xFF) << 8)
+                        |  (sector[offset + 28] & 0xFF);
+
+                if (startCluster < 2 || startCluster >= 0xFF0) continue;
+
+                ByteArrayOutputStream fileData = new ByteArrayOutputStream();
+                int cluster = startCluster;
+                int remaining = fileSize;
+
+                while (cluster < 0xFF8 && remaining > 0) {
+                    int sectorIndex = DATA_START_LBA + (cluster - 2);
+                    byte[] data = getSector(sectorIndex);
+
+                    int toCopy = Math.min(512, remaining);
+                    fileData.write(data, 0, toCopy);
+                    remaining -= toCopy;
+
+                    cluster = readFAT12Entry(cluster);
+                }
+
+                File outFile = new File(outputDir, filename);
+                try (FileOutputStream fos = new FileOutputStream(outFile)) {
+                    fos.write(fileData.toByteArray());
+                }
+
+                System.out.println("✔ Estratto: " + filename);
+            }
+        }
+    }
+
 }
 
