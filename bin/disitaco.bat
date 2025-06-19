@@ -3,7 +3,7 @@ set HOME_PATH=%~dp0
 set HOME=%HOME_PATH:~0,-1%
 set LIB="%HOME%\lib"
 set CP=
-set CLASS=ucesoft.disitaco.ui.Disitaco
+set CLASS=ucesoft.disitaco.ui.DisitacoUI
 set OPT=-server -Xms64M -Xmx64M --sun-misc-unsafe-memory-access=allow --add-opens java.desktop/com.sun.media.sound=ALL-UNNAMED
 
 if defined JAVA_HOME goto :setJavaHome

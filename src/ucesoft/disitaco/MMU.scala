@@ -2,7 +2,7 @@ package ucesoft.disitaco
 
 import ucesoft.disitaco.cpu.Memory
 import ucesoft.disitaco.video.VideoCard
-import ucesoft.mac.Version
+import ucesoft.disitaco.Version
 
 import scala.compiletime.uninitialized
 

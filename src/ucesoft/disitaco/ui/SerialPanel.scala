@@ -21,7 +21,7 @@ class SerialPanel(name:String) extends JPanel with INS8250.SignalListener:
     init()
 
     private def updateCounterLabel(): Unit =
-      counterLabel.setText("%06d".format(counter))
+      counterLabel.setText("%07d".format(counter))
 
     private def init(): Unit =
       setLayout(new BorderLayout())

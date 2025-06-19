@@ -2,7 +2,6 @@ package ucesoft.disitaco.storage;
 
 import java.io.*;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -30,15 +29,12 @@ public class FAT12Disk1_44Builder {
     private byte[][] sectors;
     private int totalSectors;
     private byte[] fat;
-
-    private final List<File> fileList = new ArrayList<>();
-    private final Map<File, Integer> fileClusterStart = new HashMap<>();
-
+    
     public FAT12Disk1_44Builder(File baseDir) {
         this.baseDir = baseDir;
-        scanFiles();
-        calculateSize();
-        build();
+        var files = scanFiles();
+        calculateSize(files);
+        build(files);
     }
 
     public byte[] getSector(int n) {
@@ -51,7 +47,8 @@ public class FAT12Disk1_44Builder {
         }
     }
 
-    private void scanFiles() {
+    private List<File> scanFiles() {
+        List<File> fileList = new ArrayList<>();
         File[] files = baseDir.listFiles();
         if (files != null) {
             var totalSize = 0;
@@ -63,25 +60,26 @@ public class FAT12Disk1_44Builder {
                 }
             }
         }
+        return fileList;
     }
 
-    private void calculateSize() {
-        int clustersNeeded = 0;
-        for (File f : fileList) {
-            int clusters = (int) ((f.length() + CLUSTER_SIZE - 1) / CLUSTER_SIZE);
-            clustersNeeded += clusters;
-        }
-        int dataSectors = clustersNeeded;
+    private void calculateSize(List<File> fileList) {
+//        int clustersNeeded = 0;
+//        for (File f : fileList) {
+//            int clusters = (int) ((f.length() + CLUSTER_SIZE - 1) / CLUSTER_SIZE);
+//            clustersNeeded += clusters;
+//        }
+        int dataSectors = (1440 * 1024 + CLUSTER_SIZE - 1) / CLUSTER_SIZE;
         totalSectors = RESERVED_SECTORS + (NUM_FATS * SECTORS_PER_FAT) + ROOT_DIR_SECTORS + dataSectors;
         sectors = new byte[totalSectors][SECTOR_SIZE];
         fat = new byte[SECTORS_PER_FAT * SECTOR_SIZE];
     }
 
-    private void build() {
+    private void build(List<File> fileList) {
         writeBootSector();
-        writeFAT();
-        writeRootDirectory();
-        writeFileData();
+        var fileClusterStart = writeFAT(fileList);
+        writeRootDirectory(fileList,fileClusterStart);
+        writeFileData(fileList,fileClusterStart);
         duplicateFAT();
     }
 
@@ -103,12 +101,13 @@ public class FAT12Disk1_44Builder {
         bpb[511] = (byte) 0xAA;
     }
 
-    private void writeFAT() {
+    private Map<File, Integer> writeFAT(List<File> fileList) {
         // Init media descriptor
         fat[0] = (byte) 0xF0;
         fat[1] = (byte) 0xFF;
         fat[2] = (byte) 0xFF;
 
+        Map<File, Integer> fileClusterStart = new HashMap<>();
         int cluster = 2;
         for (File f : fileList) {
             int clusters = (int) ((f.length() + CLUSTER_SIZE - 1) / CLUSTER_SIZE);
@@ -123,6 +122,8 @@ public class FAT12Disk1_44Builder {
         for (int i = 0; i < SECTORS_PER_FAT; i++) {
             System.arraycopy(fat, i * SECTOR_SIZE, sectors[1 + i], 0, SECTOR_SIZE);
         }
+        
+        return fileClusterStart;
     }
 
     private void duplicateFAT() {
@@ -131,7 +132,7 @@ public class FAT12Disk1_44Builder {
         }
     }
 
-    private void writeRootDirectory() {
+    private void writeRootDirectory(List<File> fileList,Map<File, Integer> fileClusterStart) {
         byte[] root = new byte[ROOT_DIR_SECTORS * SECTOR_SIZE];
         int index = 0;
         for (File f : fileList) {
@@ -145,7 +146,7 @@ public class FAT12Disk1_44Builder {
         }
     }
 
-    private void writeFileData() {
+    private void writeFileData(List<File> fileList,Map<File, Integer> fileClusterStart) {
         int dataStart = RESERVED_SECTORS + (NUM_FATS * SECTORS_PER_FAT) + ROOT_DIR_SECTORS;
         for (File f : fileList) {
             int cluster = fileClusterStart.get(f);
@@ -279,8 +280,6 @@ public class FAT12Disk1_44Builder {
                 try (FileOutputStream fos = new FileOutputStream(outFile)) {
                     fos.write(fileData.toByteArray());
                 }
-
-                System.out.println("✔ Estratto: " + filename);
             }
         }
     }

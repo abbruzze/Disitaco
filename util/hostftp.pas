@@ -1,57 +1,46 @@
-program testFile;
-uses crt;
-Const
-  TXDATA = $2F8;
-  LCR = $2FB;
-  MODEM_CONTROL = $2FC;
-  MODEM_STATUS = $2FE;
-  LSR = $2FD;
-  COM1_OFFSET = $100;
+R_ON;
+     setRTS_ON;
+     setTurbo_ON;
+     while (not isCTS_ON) do;
+     while (isCTS_ON) do begin
+       b := getByte;
 
-  STATUS_OK = 0;
-  STATUS_CMD_NOT_FOUND = 1;
-  STATUS_LOCALDIR_NOT_FOUND = 2;
-Var
-   comOffset:Integer;
-
-procedure setupSerial;
-begin
-  port[LCR + comOffset] := port[LCR + comOffset] or $80;
-  port[TXDATA + comOffset] := $06; {19200 seems to work fine}
-  port[TXDATA + comOffset + 1] := $00;
-  port[LCR + comOffset] := 3; {8 data bit}
+       inc(bufferCount);
+       buffer[bufferCount] := b;
+       if bufferCount = SizeOf(buffer) then begin
+         setRTS_OFF;
+         BlockWrite(f,buffer,bufferCount,written);
+         bufferCount := 0;
+         write('.');
+         setRTS_ON;
+       end;
+     end;
+     BlockWrite(f,buffer,bufferCount,written);
+     writeln('.');
+     close(f);
+     setDTR_OFF;
+     setTurbo_OFF;
+     status := getByte;
+     writeln('Host file ' + hostFileName + ' transferred locally successfully');
 end;
 
-procedure setTurbo_ON;
 begin
-  port[68] := 0;
-end;
+  if ParamCount < 2 then begin
+    writeln('Usage com1|com2 chdir|get|put <parameters>');
+    exit;
+  end;
 
-procedure setTurbo_OFF;
-var
-  dummy:Byte;
-begin
-  dummy := port[68];
-end;
+  if ParamStr(1) = 'com1' then comOffset := COM1_OFFSET
+  else if ParamStr(1) = 'com2' then comOffset := 0
+  else begin
+    writeln('Bad serial port: expected com1 or com2');
+    exit;
+  end;
 
-function isCTS_ON: Boolean;
-begin
-  isCTS_ON := (port[MODEM_STATUS + comOffset] and 16) <> 0;
-end;
 
-procedure setDTR_ON;
-begin
-  port[MODEM_CONTROL + comOffset] := port[MODEM_CONTROL + comOffset] or $01;
-end;
+  setupSerial;
 
-procedure setDTR_OFF;
-begin
-  port[MODEM_CONTROL + comOffset] := port[MODEM_CONTROL + comOffset] and $FE;
-end;
-
-procedure setRTS_ON;
-begin
-  port[MODEM_CONTROL + comOffset] := port[MODEM_CONTROL + comOffset] or $02;
+  if ParamStr(2) = 'chdir' then begint[MODEM_CONTROL + comOffset] := port[MODEM_CONTROL + comOffset] or $02;
 end;
 
 procedure setRTS_OFF;
@@ -248,23 +237,23 @@ begin
   end
   else
   if ParamStr(2) = 'put' then begin
-    if ParamCount <> 4 and ParamCount <> 3 then begin
+    if (ParamCount <> 4) and (ParamCount <> 3) then begin
       writeln('put command requires 2 parameters: localfilepath [hostfilename]');
       exit;
     end;
-    if ParamCount == 4 then
-        put(ParamStr(3),ParamStr(4));
+    if ParamCount = 4 then
+        put(ParamStr(3),ParamStr(4))
     else
         put(ParamStr(3),ParamStr(3));
   end
   else
   if ParamStr(2) = 'get' then begin
-    if ParamCount <> 4 and ParamCount <> 3 then begin
+    if (ParamCount <> 4) and (ParamCount <> 3) then begin
       writeln('get command requires 2 parameters: hostfilename [localfilepath]');
       exit;
     end;
-    if ParamCount == 4 then
-        get(ParamStr(3),ParamStr(4));
+    if ParamCount = 4 then
+        get(ParamStr(3),ParamStr(4))
     else
         get(ParamStr(3),ParamStr(3));
   end

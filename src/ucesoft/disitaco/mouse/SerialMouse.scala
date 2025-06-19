@@ -3,7 +3,8 @@ package ucesoft.disitaco.mouse
 import ucesoft.disitaco.PCComponent
 import ucesoft.disitaco.chips.INS8250
 
-import java.awt.event.{MouseEvent, MouseListener, MouseMotionListener, MouseWheelEvent, MouseWheelListener}
+import java.awt.{Point, Robot, Toolkit}
+import java.awt.event.{MouseEvent, MouseListener, MouseMotionListener, MouseWheelEvent, MouseWheelListener, WindowAdapter, WindowEvent}
 import javax.swing.{JComponent, SwingUtilities}
 import scala.collection.mutable
 import scala.compiletime.uninitialized
@@ -12,7 +13,7 @@ import scala.compiletime.uninitialized
  * @author Alessandro Abbruzzetti
  *         Created on 22/05/2025 20:01  
  */
-class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PCComponent with INS8250.SerialDevice with MouseListener with MouseMotionListener with MouseWheelListener:
+class SerialMouse(target:JComponent,mouseCaptureOffAction:() => Unit,logitech3Buttons:Boolean = false) extends PCComponent with INS8250.SerialDevice with MouseListener with MouseMotionListener with MouseWheelListener:
   override protected val componentName = "SerialMouse"
   override val name = "Serial Mouse"
 
@@ -27,18 +28,42 @@ class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PC
   private var scaleX = 1.0
   private var scaleY = 1.0
 
+  private val robot = new Robot()
+  private var captureOn = false
+  private var componentActive = true
+  private val emptyCursor = {
+    val cursor = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+    Toolkit.getDefaultToolkit.createCustomCursor(cursor, new Point(0, 0), "null")
+  }
+  private val windowAdapter = new WindowAdapter:
+    override def windowActivated(e: WindowEvent): Unit =
+      componentActive = true
+      target.setCursor(emptyCursor)
+
+    override def windowDeactivated(e: WindowEvent): Unit =
+      componentActive = false
+      target.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR))
+
   def setScaleXY(sx:Double,sy:Double): Unit =
     scaleX = sx
     scaleY = sy
 
-  def enable(enabled:Boolean): Unit =
+  def setCapture(on: Boolean): Unit =
+    captureOn = on
     target.removeMouseListener(this)
     target.removeMouseMotionListener(this)
     target.removeMouseWheelListener(this)
-    if enabled then
+
+    if on then
+      target.setCursor(emptyCursor)
+      SwingUtilities.getWindowAncestor(target).addWindowListener(windowAdapter)
       target.addMouseListener(this)
       target.addMouseMotionListener(this)
       target.addMouseWheelListener(this)
+    else
+      target.setCursor(new java.awt.Cursor(java.awt.Cursor.DEFAULT_CURSOR))
+      SwingUtilities.getWindowAncestor(target).removeWindowListener(windowAdapter)
+  end setCapture
 
   override protected def reset(): Unit =
     pendingBytes.clear()
@@ -126,11 +151,36 @@ class SerialMouse(target:JComponent,logitech3Buttons:Boolean = false) extends PC
         sendByte(byte4)
   end makeEvent
 
-  override def mouseClicked(e: MouseEvent): Unit = {}
-  override def mousePressed(e: MouseEvent): Unit = makeEvent(lbPressed = SwingUtilities.isLeftMouseButton(e),rbPressed = SwingUtilities.isRightMouseButton(e),cbPressed = SwingUtilities.isMiddleMouseButton(e),e)
-  override def mouseReleased(e: MouseEvent): Unit = makeEvent(lbPressed = false,rbPressed = false,cbPressed = false,e)
+  override def mouseClicked(e: MouseEvent): Unit =
+    if !captureOn || !componentActive then return
+
+    if SwingUtilities.isMiddleMouseButton(e) && e.isControlDown then
+      setCapture(false)
+      mouseCaptureOffAction()
+  override def mousePressed(e: MouseEvent): Unit =
+    if !captureOn || !componentActive then return
+
+    makeEvent(lbPressed = SwingUtilities.isLeftMouseButton(e),rbPressed = SwingUtilities.isRightMouseButton(e),cbPressed = SwingUtilities.isMiddleMouseButton(e),e)
+  override def mouseReleased(e: MouseEvent): Unit =
+    makeEvent(lbPressed = false,rbPressed = false,cbPressed = false,e)
   override def mouseEntered(e: MouseEvent): Unit = {}
-  override def mouseExited(e: MouseEvent): Unit = lastMouseEvent = null
-  override def mouseDragged(e: MouseEvent): Unit = makeEvent(lbPressed = SwingUtilities.isLeftMouseButton(e),rbPressed = SwingUtilities.isRightMouseButton(e),cbPressed = SwingUtilities.isMiddleMouseButton(e),e)
-  override def mouseMoved(e: MouseEvent): Unit = makeEvent(lbPressed = false,rbPressed = false,cbPressed = false,e)
-  override def mouseWheelMoved(e: MouseWheelEvent): Unit = makeEvent(lbPressed = false,rbPressed = false,cbPressed = false,e)
+  override def mouseExited(e: MouseEvent): Unit =
+    if !captureOn || !componentActive then return
+
+    val center = target.getLocationOnScreen
+    val dim = target.getSize
+    center.x += dim.width / 2
+    center.y += dim.height / 2
+    robot.mouseMove(center.x, center.y)
+
+    lastMouseEvent = null
+  override def mouseDragged(e: MouseEvent): Unit =
+    if !captureOn || !componentActive then return
+
+    makeEvent(lbPressed = SwingUtilities.isLeftMouseButton(e),rbPressed = SwingUtilities.isRightMouseButton(e),cbPressed = SwingUtilities.isMiddleMouseButton(e),e)
+  override def mouseMoved(e: MouseEvent): Unit =
+    if !captureOn || !componentActive then return
+
+    makeEvent(lbPressed = false,rbPressed = false,cbPressed = false,e)
+  override def mouseWheelMoved(e: MouseWheelEvent): Unit =
+    makeEvent(lbPressed = false,rbPressed = false,cbPressed = false,e)

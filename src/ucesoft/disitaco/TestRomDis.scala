@@ -49,6 +49,7 @@ object TestRomDis:
 
     val mother = new Motherboard
     val frame = new JFrame()
+    frame.setIconImage(new ImageIcon(getClass.getResource("/resources/disitacoLogo.png")).getImage)
     val dim = mother.videoCard.getPreferredSize
     val display = new Display(dim.width, dim.height, "MDA Test", frame, mother.clock)
     display.setFocusable(true)
@@ -184,9 +185,9 @@ object TestRomDis:
 
     // Mouse
     if Config.isMouseEnabled then
-      val mouse = new SerialMouse(display,logitech3Buttons = Config.isMouse3Buttons)
+      val mouse = new SerialMouse(display,() => {},logitech3Buttons = Config.isMouse3Buttons)
       mother.add(mouse)
-      mouse.enable(enabled = true)
+      mouse.setCapture(true)
       mouse.setScaleXY(Config.getMouseScaleX,Config.getMouseScaleY)
       if Config.getMouseCOMPort == 1 then
         mother.com1.ins8250.setDevice(mouse)

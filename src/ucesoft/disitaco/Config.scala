@@ -64,8 +64,6 @@ object Config:
               OptionROM(label,Integer.parseInt(address,16),rom,Option(file))
             case None =>
               throw new FileNotFoundException(s"Missing option rom '$label' file: $path")
-
-    optionRomList.foreach(println)
   end loadOptionRom
 
   def getClockFrequency: Int = config.getProperty("clock","4770000").toInt
@@ -122,6 +120,7 @@ object Config:
 
   def isCGAAlternativeCharSet: Boolean = config.getProperty("cga.altCharSet","false").toBoolean
   def isCGACompositeMonitor: Boolean = config.getProperty("cga.composite","false").toBoolean
+  def isCGA: Boolean = config.getProperty("video.card","cga") == "cga"
 
   def isHDConfigured: Boolean = optionRomList.exists(_.label.toUpperCase().startsWith("XEBEC"))
 

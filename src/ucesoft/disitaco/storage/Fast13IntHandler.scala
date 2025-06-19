@@ -26,6 +26,8 @@ class Fast13IntHandler(mother:Motherboard) extends i8088.InterruptHandler:
         if (driveID & 0x80) != 0 then
           sect -= 1
           driveID = (driveID & 0x7F) + mother.floppyDrives
+        if driveID >= motorOnID.length then
+          return false
         //println("Read sectors (driveID=" + driveID + ", track=" + track + ", sect=" + sect + ", head=" + head + ", n=" + n + ")")
         drive.getListener.onMotor(driveID,motorOn = true)
         if motorOnID(driveID) != null then

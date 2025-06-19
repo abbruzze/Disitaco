@@ -10,4 +10,4 @@ if [ ! -x $JAVA_HOME/bin/java ]; then
 else
         JAVA=$JAVA_HOME/bin/java
 fi
-$JAVA $OPT -cp $CP -Ddisitaco.home=$HOME ucesoft.disitaco.ui.Disitaco "$@"
+$JAVA $OPT -cp $CP -Ddisitaco.home=$HOME ucesoft.disitaco.ui.DisitacoUI "$@"

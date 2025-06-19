@@ -18,7 +18,7 @@ Compile / sourceGenerators += Def.task {
   val file = (Compile / scalaSource).value / "ucesoft" / "disitaco" / "Version.scala"
   println(s"Generating Version.scala $file")
   IO.write(file,
-    s"""package ucesoft.mac
+    s"""package ucesoft.disitaco
        |object Version {
        | val VERSION = "${version.value}"
        | val SCALA_VERSION = "${scalaVersion.value}"
@@ -53,6 +53,8 @@ buildsDisitacoDist := {
   IO.delete(packDir)
   IO.createDirectory(packDir)
   val packConfig = packDir / "config"
+  val packRom = packDir / "rom"
+  val packDisk = packDir / "disk"
   val packLib = packDir / "lib"
   IO.createDirectories(Seq(packLib))
 
@@ -65,8 +67,8 @@ buildsDisitacoDist := {
     (f,f.toString.substring(classDir.toString.length + 1))
   }
 
-  val sMac = packLib / "disitaco.jar"
-  IO.jar(jarFiles,sMac,new java.util.jar.Manifest,None)
+  val disitaco = packLib / "disitaco.jar"
+  IO.jar(jarFiles,disitaco,new java.util.jar.Manifest,None)
 
   val libraries = (Compile / managedClasspath).value.map(_.data) ++ (Compile / unmanagedClasspath).value.map(_.data)
   val scripts = (baseDirectory.value / "bin").listFiles.filter { f =>
@@ -82,8 +84,20 @@ buildsDisitacoDist := {
   for (lib <- libraries) {
     IO.copyFile(lib,packLib / lib.getName)
   }
+  val roms = (baseDirectory.value / "rom").listFiles
+  // copy roms
+  for (rom <- roms) {
+    IO.copyFile(rom,packRom / rom.getName)
+  }
+  // copy disks
+  val disks = (baseDirectory.value / "disk").listFiles
+  for (disk <- disks)
+    if (disk.getName.endsWith(".zip"))
+      IO.unzip(disk,packDisk)
+    else
+      IO.copyFile(disk,packDisk / disk.getName)
   // copy scripts
-  val libJarOnly = (libraries ++ Vector(sMac)).filter(_.getName.endsWith(".jar")).map(_.getName)
+  val libJarOnly = (libraries ++ Vector(disitaco)).filter(_.getName.endsWith(".jar")).map(_.getName)
   for(sc <- scripts) {
     val lines = IO.readLines(sc)
     val isLinuxShell = sc.getName.toUpperCase.endsWith(".SH")
@@ -114,13 +128,13 @@ buildsDisitacoDist := {
   IO.zip(zipFiles,zipFile,None)
   // set permissions
   val fs = java.nio.file.FileSystems.newFileSystem(zipFile.toPath)
-  val root = fs.getPath("/sMac")
+  val root = fs.getPath("/disitaco")
   val perm = java.nio.file.attribute.PosixFilePermissions.fromString("r-xr-xr-x")
   java.nio.file.Files.list(root).filter(p => p.toString.endsWith(".sh")).forEach(p => {
     java.nio.file.Files.setAttribute(p,"zip:permissions",perm)
   })
   fs.close()
-  IO.copyFile(sMac,dist / sMac.getName)
+  IO.copyFile(disitaco,dist / disitaco.getName)
 
   // clean pack dir
   IO.delete(packDir)
