@@ -66,6 +66,8 @@ class Speaker(val sampleRate:Int) extends Audio with Runnable:
 
   override protected def reset(): Unit =
     queue.clear()
+    if sourceLine != null then
+      sourceLine.flush()
 
   inline private def dequeue() : Array[Byte] = queue.take()
 

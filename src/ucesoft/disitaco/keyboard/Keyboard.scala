@@ -128,7 +128,7 @@ class Keyboard(clock:Clock,irq1:Boolean => Unit) extends PCComponent with KeyLis
 
   private inline val SOFT_RESET_MILLIS = 20
   private inline val REPETITION_MILLIS = 500
-  private inline val REPETITION_STEP_MILLIS = 90 // 10.9 chars/sec
+  private inline val REPETITION_STEP_MILLIS = 30
   private inline val BUFFER_SIZE = 16
   private inline val OVERRUN_SCANCODE = 0xFF
   private inline val RESET_DELAY_CYCLES = 100 // TODO set minimum value

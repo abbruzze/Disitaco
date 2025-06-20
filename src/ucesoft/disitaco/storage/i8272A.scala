@@ -230,6 +230,7 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
     resetState()
     for d <- drives do
       d.reset()
+    waitCycles = 0
   end reset
 
   private def resetState(): Unit =

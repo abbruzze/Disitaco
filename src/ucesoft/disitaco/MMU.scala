@@ -26,6 +26,11 @@ class MMU(val memorySizeInK:Int) extends PCComponent with Memory:
 
   private var waitingBootMessage = true
   private var bootMessageSpaceCount = 0
+
+  override protected def hardReset(): Unit =
+    waitingBootMessage = true
+    bootMessageSpaceCount = 0
+    java.util.Arrays.fill(mem,0.toByte)
   
   final def getRAM: Array[Byte] = mem
   final def getROM: Array[Byte] = rom

@@ -53,6 +53,7 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
   private val serialDialogItem = new JCheckBoxMenuItem("Serial dialog")
   private val warpItem = new JCheckBoxMenuItem("Warp mode")
   private val mouseCapItem = new JCheckBoxMenuItem("Mouse capture")
+  private val turboButton = new JToggleButton(new ImageIcon(getClass.getResource("/resources/turbo.png")))
 
   private val mother = new Motherboard
   private val frame = new JFrame()
@@ -62,6 +63,8 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
   private val debugger = new Debugger(mother.cpu,mother.videoCard,() => debugMenuItem.setSelected(false),mother.pic.pic,mother.videoCard,mother.dma.dma,mother.pit.timer,mother.keyboard,mother.fdc.fdc,mother.rtc.rtc,mother.speaker,mother.com1.ins8250,mother.com2.ins8250)
   private var lastDir = new File("./")
   private val displayLabel = new JLabel("Waiting video display updating ...")
+  private val videoCardInfoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
+  private var enableDisplayResizing = true
 
   private var mouse : SerialMouse = uninitialized
 
@@ -102,16 +105,18 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     msg match
       case WarpMode(_,warp) =>
         warpItem.setSelected(warp)
+        turboButton.setSelected(warp)
       case MessageBus.VideoModeChanged(_, mode, w, h) =>
         SwingUtilities.invokeLater(() => {
           displayLabel.setText(s"$mode $w x $h")
-          val zoomX = mother.videoCard.getPreferredZoomX
-          val zoomY = mother.videoCard.getPreferredZoomY
-          displayLabel.invalidate()
-          if h > 100 then
-            display.setPreferredSize(new Dimension((w * zoomX).toInt,(h * zoomY).toInt))
-            MessageBus.send(MessageBus.DisplaySizeChanged(this,zoomX,zoomY))
-            frame.pack()
+          if enableDisplayResizing then
+            val zoomX = mother.videoCard.getPreferredZoomX
+            val zoomY = mother.videoCard.getPreferredZoomY
+            displayLabel.invalidate()
+            if h > 100 then // TODO
+              display.setPreferredSize(new Dimension((w * zoomX).toInt,(h * zoomY).toInt))
+              MessageBus.send(MessageBus.DisplaySizeChanged(this,zoomX,zoomY))
+              frame.pack()
         })
       case _ =>
   end onMessage
@@ -178,11 +183,19 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
 
     val displayPanel = new JPanel(new BorderLayout())
     val infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
-    infoPanel.add(displayLabel)
+
+    turboButton.setFocusable(false)
+    turboButton.setToolTipText("Warp mode")
+    turboButton.addActionListener(_ => MessageBus.send(MessageBus.WarpMode(this,turboButton.isSelected)))
+    videoCardInfoPanel.add(displayLabel)
+    infoPanel.add(turboButton)
     infoPanel.add(storagePanel)
 
     displayPanel.add("Center", display)
     displayPanel.add("South", infoPanel)
+    displayPanel.add("North", videoCardInfoPanel)
+    videoCardInfoPanel.setVisible(false)
+    displayLabel.setIcon(new ImageIcon(getClass.getResource("/resources/trace/monitor.png")))
     display.setPreferredSize(new Dimension(dim.width, dim.height))
     mother.display = display
     frame.getContentPane.add("Center", displayPanel)
@@ -323,7 +336,45 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     buildHelpMenu(helpMenu)
   end buildMenuBar
 
-  private def buildFileMenu(fileMenu:JMenu): Unit = {}
+  private def buildFileMenu(fileMenu:JMenu): Unit =
+    val insertFloppy = new JMenu("Insert floppy")
+    val floppyAItem = new JMenuItem("Floppy A ...")
+    val floppyBItem = new JMenuItem("Floppy B ...")
+    floppyAItem.addActionListener(_ => openImage(diskId = 0))
+    floppyBItem.addActionListener(_ => openImage(diskId = 1))
+    insertFloppy.add(floppyAItem)
+    insertFloppy.add(floppyBItem)
+    fileMenu.add(insertFloppy)
+
+    val insertDir = new JMenu("Insert virtual floppy")
+    val vfloppyAItem = new JMenuItem("Virtual Floppy A ...")
+    val vfloppyBItem = new JMenuItem("Virtual Floppy B ...")
+    vfloppyAItem.addActionListener(_ => openDirectory(diskId = 0))
+    vfloppyBItem.addActionListener(_ => openDirectory(diskId = 1))
+    insertDir.add(vfloppyAItem)
+    insertDir.add(vfloppyBItem)
+    fileMenu.add(insertDir)
+
+    val ejectFloppy = new JMenu("Eject floppy")
+    val efloppyAItem = new JMenuItem("Floppy A ...")
+    val efloppyBItem = new JMenuItem("Floppy B ...")
+    efloppyAItem.addActionListener(_ => ejectImage(diskId = 0))
+    efloppyBItem.addActionListener(_ => ejectImage(diskId = 1))
+    ejectFloppy.add(efloppyAItem)
+    ejectFloppy.add(efloppyBItem)
+    fileMenu.add(ejectFloppy)
+
+    val resetItem = new JMenuItem("Reset")
+    val powerOffOnItem = new JMenuItem("Power off/on")
+    fileMenu.add(resetItem)
+    fileMenu.add(powerOffOnItem)
+    resetItem.addActionListener(_ => reset(hard = false))
+    powerOffOnItem.addActionListener(_ => reset(hard = true))
+
+    val shutdownItem = new JMenuItem("Shutdown")
+    fileMenu.add(shutdownItem)
+    shutdownItem.addActionListener(_ => shutdown())
+
   private def buildDebugMenu(debugMenu:JMenu): Unit =
     debugMenu.add(debugMenuItem)
     debugMenuItem.addActionListener(_ => if debugMenuItem.isSelected then openDebugger(enable = false) else closeDebugger())
@@ -341,6 +392,16 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
       cgaComp.addActionListener(_ => mother.videoCard.enableCompositeMonitor(cgaComp.isSelected))
     toolsMenu.add(serialDialogItem)
     serialDialogItem.addActionListener(_ => serialDialog.dialog.setVisible(serialDialogItem.isSelected))
+    val showVideoCardInfoItem = new JCheckBoxMenuItem("Show video card info")
+    toolsMenu.add(showVideoCardInfoItem)
+    showVideoCardInfoItem.addActionListener(_ => {
+      videoCardInfoPanel.setVisible(showVideoCardInfoItem.isSelected)
+      frame.pack()
+    })
+    val displayResItem = new JCheckBoxMenuItem("Enable dynamic display resizing")
+    displayResItem.setSelected(enableDisplayResizing)
+    toolsMenu.add(displayResItem)
+    displayResItem.addActionListener(_ => enableDisplayResizing = displayResItem.isSelected)
   private def buildHelpMenu(helpMenu:JMenu): Unit =
     val aboutItem = new JMenuItem("About")
     helpMenu.add(aboutItem)

@@ -130,9 +130,10 @@ class DiskDrive(val id:Int,val geometry : DiskGeometry,FDC_CLOCK:Int,RPM:Int,isF
     diskImage = image
     diskListener.onDiskInserted(id,diskImage)
   def ejectDisk(): Unit =
-    diskImage.closeAndFlush()
-    diskListener.onDiskEjected(id,diskImage)
-    diskImage = null
+    if diskImage != null then
+      diskImage.closeAndFlush()
+      diskListener.onDiskEjected(id,diskImage)
+      diskImage = null
 
   def hasDiskInserted: Boolean = diskImage != null
 

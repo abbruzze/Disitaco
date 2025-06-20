@@ -104,6 +104,10 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
     speakerDataEnabled = false
     pit.timer.setGate(0, true)
     pit.timer.setGate(1, true)
+    speakerCycles = 0
+    cpuClockToWait = 0
+    busHoldingReq = false
+    busHoldingReqWaitingAck = false
 
   /*
     |Bit           | Description
