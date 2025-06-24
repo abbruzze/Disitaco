@@ -582,8 +582,17 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
               cmd.dataReadEnqueue(bytes)
             // ok, go to next sector
             cmdBytes(3) += 1
-            if cmdBytes(3) > cmdBytes(5) then // go over last sector?
-              cmdBytes(3) = 1
+            if cmdBytes(3) > drive.geometry.sectorsPerTrack then // go over last sector?
+              if drive.getHead == 0 then
+                drive.setHead(1)
+                cmdBytes(3) = 1
+              else
+                cmdBytes(3) = 1
+                cmdBytes(1) += 1
+                drive.setHead(0)
+                drive.moveOnTrack(track = cmdBytes(1))
+                cmd.waitCycles(stepRateTime)
+                cmd.state = 1
       case 3 => // write seek sector
         if cmd.isTerminalCount then // all bytes transferred?
           cmd.state = 4
@@ -602,8 +611,17 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
               cmd.setWriteNotReady()
             })
             cmdBytes(3) += 1
-            if cmdBytes(3) > cmdBytes(5) then // go over last sector?
-              cmdBytes(3) = 1
+            if cmdBytes(3) > drive.geometry.sectorsPerTrack then // go over last sector?
+              if drive.getHead == 0 then
+                drive.setHead(1)
+                cmdBytes(3) = 1
+              else
+                cmdBytes(3) = 1
+                cmdBytes(1) += 1
+                drive.setHead(0)
+                drive.moveOnTrack(track = cmdBytes(1))
+                cmd.waitCycles(stepRateTime)
+                cmd.state = 1
       case 4 => // command completed on TC
         val cmdBytes = cmd.getCMDBytes
         if cmd.id == CMD_READ_DATA_ID then
@@ -615,7 +633,7 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
         val st0 = makeST0(HD = drive.getHead,US = selectedDrive)
         val st1 = makeST1()
         val st2 = makeST2()
-        cmd.setResultBytes(st0,st1,st2,drive.getCurrentTrack,drive.getHead,drive.getSector,2)
+        cmd.setResultBytes(st0,st1,st2,cmdBytes(1),drive.getHead,cmdBytes(3),2)
         commandCompleted(resultPhase = true, irq = true)
   // ============================================================
 
