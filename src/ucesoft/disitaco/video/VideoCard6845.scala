@@ -152,6 +152,7 @@ abstract class VideoCard6845 extends VideoCard:
         address_reg = i
         write6845DataReg(initRegValues(i))
     address_reg = 0
+    updateGeometry()
 
   final def setHSyncManualPos(pos:Int): Unit = hsyncManualPos = pos
   final def setVSyncManualPos(pos:Int): Unit = vsyncManualPos = pos

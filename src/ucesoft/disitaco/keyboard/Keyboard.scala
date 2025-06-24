@@ -172,6 +172,13 @@ class Keyboard(clock:Clock,irq1:Boolean => Unit) extends PCComponent with KeyLis
     if irqEnabled then
       irq1(false)
       irq1(true)
+      
+  def pressCtrlAltDel(): Unit =
+    ctrlAltDelOn = true
+    val keys = Array(29, 56, 83)
+    for k <- keys do buffer += k
+    clock.scheduleMillis(1000, _ => ctrlAltDelOn = false) // to be sure that if no keys are read we reset the flag
+    triggerIRQ()
 
   override final def keyPressed(e: KeyEvent): Unit =
     if !enabled then
@@ -204,12 +211,7 @@ class Keyboard(clock:Clock,irq1:Boolean => Unit) extends PCComponent with KeyLis
             irq1(false)
             println("Keyboard buffer cleared")
           case KeyEvent.VK_F11 =>
-            println("CTRL-ALT-DEL")
-            ctrlAltDelOn = true
-            val keys = Array(29,56,83)
-            for k <- keys do buffer += k
-            clock.scheduleMillis(1000,_ => ctrlAltDelOn = false) // to be sure that if no keys are read we reset the flag
-            triggerIRQ()
+            pressCtrlAltDel()
           case _ =>
             println(s"Key not recognized: $e")
   end keyPressed

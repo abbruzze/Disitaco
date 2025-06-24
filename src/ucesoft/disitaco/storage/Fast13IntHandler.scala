@@ -36,6 +36,9 @@ class Fast13IntHandler(mother:Motherboard) extends i8088.InterruptHandler:
           drive.getListener.onMotor(driveID,motorOn = false)
         })
         drive.getListener.onPosition(driveID, track, head, sect)
+        if sect >= drive.geometry.sectorsPerTrack || track > drive.geometry.tracks then
+          setFlags(Registers.F_CARRY)
+          return true
         while n > 0 do
           val bytes = drive.getDiskInserted.get.readSector(track, head, sect).toArray
           var offset = 0

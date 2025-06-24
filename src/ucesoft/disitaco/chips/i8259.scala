@@ -81,7 +81,7 @@ class i8259 extends PCComponent with i8088.IntrAck:
 
   override protected def reset(): Unit =
     irqLevels = 0
-    INTR = false
+    setINTR(false)
     initialize()
 
   private def initialize(): Unit =

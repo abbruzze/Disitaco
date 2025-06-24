@@ -379,6 +379,9 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     debugMenu.add(debugMenuItem)
     debugMenuItem.addActionListener(_ => if debugMenuItem.isSelected then openDebugger(enable = false) else closeDebugger())
   private def buildToolsMenu(toolsMenu:JMenu): Unit =
+    val ctrlAltDelItem = new JMenuItem("CTRL+ALT+DEL")
+    toolsMenu.add(ctrlAltDelItem)
+    ctrlAltDelItem.addActionListener(_ => mother.keyboard.pressCtrlAltDel())
     toolsMenu.add(warpItem)
     warpItem.addActionListener(_ => MessageBus.send(MessageBus.WarpMode(this,warpItem.isSelected)))
     mouseCapItem.setToolTipText("Press CTRL+wheel to uncapture")
