@@ -34,6 +34,8 @@ class CGA extends VideoCard6845:
 
   private var compositeMonitorEnabled = false
 
+  private var lightPenLatched = false
+
   /*
   Two character fonts are used on the Color/Graphics Monitor Adapter: a 7-high by 7-wide double-dot font and a
   7-high by 5-wide single-dot font. The font is selected by a jumper (P3).
@@ -370,7 +372,15 @@ class CGA extends VideoCard6845:
         var status = 0xF0
         if isVBlank then status |= 8
         if isHBlank || isVBlank then status |= 1
+        if lightPenLatched then
+          status |= 2 // light pen trigger
         status
+      case 0x3DB =>
+        clearLightPenLatch()
+        0xFF
+      case 0x3DC =>
+        setLightPenLatch()
+        0xFF
       case _ =>
         log.warning("CGA I/O reading from a %d", port)
         0xFF
@@ -446,8 +456,19 @@ class CGA extends VideoCard6845:
            Selects blue foreground color in 640 by 200 graphics mode.
          */
         colorSelectRegister = value
-      case 0x3DB|0x3DC =>
-        log.info("CGA writing into light pen registers. Ignored.")
+      case 0x3DB =>
+        clearLightPenLatch()
+      case 0x3DC =>
+        setLightPenLatch()
       case _ =>
         log.warning("CGA writing unknown port: %d = %d", port, value)
   end out8
+
+  private def clearLightPenLatch(): Unit =
+    lightPenLatched = false
+  private def setLightPenLatch(): Unit =
+    if !lightPenLatched then
+      lightPenLatched = true
+      val address = ((vma << 1) + local_ram_ptr) & RAM_SIZE_MASK
+      regs(16) = address >> 8
+      regs(17) = address & 0xFF
