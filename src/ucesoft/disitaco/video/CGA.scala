@@ -26,7 +26,7 @@ class CGA extends VideoCard6845:
 
   private var ram_base_address = 0
 
-  private var resolution = MEDIUM_RES
+  private var resolution = LOW_RES
   private var _40ColMode = false
 
   private var local_ram_ptr = 0
@@ -152,6 +152,7 @@ class CGA extends VideoCard6845:
   override def getCardInfo: VideoCard.CardInfo = VideoCard.CardInfo(mainMemoryOffset = 0xB_8000,dipSwitch54 = 0b10,supportColors = true)
   override def getPreferredSize: Dimension = new Dimension(912,262)
   override def getPreferredZoomY: Double = 2.0
+  override def getPreferredZoomX: Double = if getMode == DrawMode.BITMAP && /*_40ColMode ||*/ resolution == MEDIUM_RES then 2.0 else 1.0
   // ========================= Drawing ========================================
   private def fetchGFXAndAttrs(): Unit =
     val ram = this.ram

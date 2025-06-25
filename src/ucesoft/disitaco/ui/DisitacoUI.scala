@@ -65,6 +65,8 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
   private val displayLabel = new JLabel("Waiting video display updating ...")
   private val videoCardInfoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT))
   private var enableDisplayResizing = true
+  private var frameSizeFactor = 1.0
+  private var lastVideoModeChanged : MessageBus.VideoModeChanged = uninitialized
 
   private var mouse : SerialMouse = uninitialized
 
@@ -106,20 +108,26 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
       case WarpMode(_,warp) =>
         warpItem.setSelected(warp)
         turboButton.setSelected(warp)
+      case vmc@MessageBus.VideoModeChanged(_, _, _, _) =>
+        lastVideoModeChanged = vmc
+        adjustScreen(vmc)
+      case _ =>
+  end onMessage
+
+  private def adjustScreen(vmc:MessageBus.VideoModeChanged): Unit =
+    vmc match
       case MessageBus.VideoModeChanged(_, mode, w, h) =>
         SwingUtilities.invokeLater(() => {
           displayLabel.setText(s"$mode $w x $h")
           if enableDisplayResizing then
-            val zoomX = mother.videoCard.getPreferredZoomX
-            val zoomY = mother.videoCard.getPreferredZoomY
+            val zoomX = mother.videoCard.getPreferredZoomX * frameSizeFactor
+            val zoomY = mother.videoCard.getPreferredZoomY * frameSizeFactor
             displayLabel.invalidate()
             if h > 100 then // TODO
-              display.setPreferredSize(new Dimension((w * zoomX).toInt,(h * zoomY).toInt))
-              MessageBus.send(MessageBus.DisplaySizeChanged(this,zoomX,zoomY))
+              display.setPreferredSize(new Dimension((w * zoomX).toInt, (h * zoomY).toInt))
+              MessageBus.send(MessageBus.DisplaySizeChanged(this, zoomX, zoomY))
               frame.pack()
-        })
-      case _ =>
-  end onMessage
+    })
 
   private def errorHandler(t: Throwable): Unit =
     t.printStackTrace()
@@ -174,6 +182,7 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
 
   private def setGUI(): Unit =
     frame.setIconImage(new ImageIcon(getClass.getResource("/resources/disitacoLogo.png")).getImage)
+    frame.setResizable(false)
     val dim = mother.videoCard.getPreferredSize
     display = new Display(dim.width, dim.height, s"Disitaco ver. ${Version.VERSION}", frame, mother.clock)
     display.addKeyListener(mother.keyboard)
@@ -272,8 +281,10 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
       mother.add(mouse)
       mouse.setScaleXY(Config.getMouseScaleX,Config.getMouseScaleY)
       if Config.getMouseCOMPort == 1 then
+        mother.com1.enabled = true
         mother.com1.ins8250.setDevice(mouse)
       else
+        mother.com2.enabled = true
         mother.com2.ins8250.setDevice(mouse)
 
     // Turbo
@@ -287,7 +298,9 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
       val localftp = new HostFileTransferSerialDevice
       if Config.getHostFTPCom == 1 then
         mother.com1.ins8250.setDevice(localftp)
+        mother.com1.enabled = true
       else
+        mother.com2.enabled = true
         mother.com2.ins8250.setDevice(localftp)
 
     // Serial signals
@@ -388,6 +401,7 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     toolsMenu.add(mouseCapItem)
     mouseCapItem.addActionListener(_ => mouse.setCapture(mouseCapItem.isSelected))
     toolsMenu.add(fastINT13MenuItem)
+    fastINT13MenuItem.addActionListener(_ => setFastINT13(fastINT13MenuItem.isSelected))
     if Config.isCGA then
       val cgaComp = new JCheckBoxMenuItem("CGA video composite")
       toolsMenu.add(cgaComp)
@@ -405,6 +419,12 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     displayResItem.setSelected(enableDisplayResizing)
     toolsMenu.add(displayResItem)
     displayResItem.addActionListener(_ => enableDisplayResizing = displayResItem.isSelected)
+    val frameDoubleSizeItem = new JCheckBoxMenuItem("Screen double size")
+    toolsMenu.add(frameDoubleSizeItem)
+    frameDoubleSizeItem.addActionListener(_ => {
+      frameSizeFactor = if frameDoubleSizeItem.isSelected then 2.0 else 1.0
+      adjustScreen(lastVideoModeChanged)
+    })
   private def buildHelpMenu(helpMenu:JMenu): Unit =
     val aboutItem = new JMenuItem("About")
     helpMenu.add(aboutItem)
