@@ -14,16 +14,17 @@ class Fast13IntHandler(mother:Motherboard) extends i8088.InterruptHandler:
     import regs.*
     ah match
       case 0x02 =>  // read
-        val track = cx >> 8
+        var track = cx >> 8
         var sect = cx & 0xFF
-        val head = dx >> 8
+        var head = dx >> 8
         var n = ax & 0xFF
         var addr = (es << 4) + bx
         var driveID = dx & 0xFF
-        if (driveID & 0x80) == 0 && !mother.fdc.fdc.getDrives(driveID).hasDiskInserted then
+        val hd = (driveID & 0x80) != 0
+        if !hd && !mother.fdc.fdc.getDrives(driveID).hasDiskInserted then
           return false
-        val drive = if (driveID & 0x80) == 0 then mother.fdc.fdc.getDrives(driveID) else mother.hdc.hdFdc.getDrives(driveID & 0x7F)
-        if (driveID & 0x80) != 0 then
+        val drive = if !hd then mother.fdc.fdc.getDrives(driveID) else mother.hdc.hdFdc.getDrives(driveID & 0x7F)
+        if hd then
           sect -= 1
           driveID = (driveID & 0x7F) + mother.floppyDrives
         if driveID >= motorOnID.length then
@@ -36,9 +37,16 @@ class Fast13IntHandler(mother:Motherboard) extends i8088.InterruptHandler:
           drive.getListener.onMotor(driveID,motorOn = false)
         })
         drive.getListener.onPosition(driveID, track, head, sect)
-        if sect >= drive.geometry.sectorsPerTrack || track > drive.geometry.tracks then
-          setFlags(Registers.F_CARRY)
-          return true
+
+        if hd then
+          if sect >= drive.geometry.sectorsPerTrack then
+            setFlags(Registers.F_CARRY)
+            return true
+        else
+          if sect > drive.geometry.sectorsPerTrack then
+            setFlags(Registers.F_CARRY)
+            return true
+        val geo = drive.geometry
         while n > 0 do
           val bytes = drive.getDiskInserted.get.readSector(track, head, sect).toArray
           var offset = 0
@@ -47,7 +55,33 @@ class Fast13IntHandler(mother:Motherboard) extends i8088.InterruptHandler:
             addr += 1
             offset += 1
           n -= 1
-          sect += 1
+
+          if hd then
+            if sect < geo.sectorsPerTrack - 1 then sect += 1
+            else if head < geo.heads - 1 then
+              head += 1
+              sect = 0
+            else if track < geo.tracks - 1 then
+              track += 1
+              head = 0
+              sect = 0
+            else
+              track = geo.tracks
+              head = 0
+              sect = 0
+          else
+            if sect < geo.sectorsPerTrack then sect += 1
+            else if head < geo.heads - 1 then
+              head += 1
+              sect = 1
+            else if track < geo.tracks - 1 then
+              track += 1
+              head = 0
+              sect = 1
+            else
+              track = geo.tracks
+              head = 0
+              sect = 1
         mother.memory.writeByte(0x441, 0, abs = true)
         clearFlags(Registers.F_CARRY)
         ah = 0

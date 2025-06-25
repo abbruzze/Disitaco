@@ -135,7 +135,7 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
     CMD_READ_DATA_ID        -> ("Read Data",8,commandReadWriteData),
     CMD_READ_TRACK_ID       -> ("Read track",8,commandUnimplemented),
     CMD_READ_DELETED_ID     -> ("Read Deleted",8,commandUnimplemented),
-    CMD_READ_ID_ID          -> ("Read ID",1,commandUnimplemented),
+    CMD_READ_ID_ID          -> ("Read ID",1,commandReadID),
     CMD_WRITE_DATA_ID       -> ("Write data",8,commandReadWriteData),
     CMD_FORMAT_TRACK_ID     -> ("Format track",5,commandFormatTrack),
     CMD_WRITE_DEL_DATA_ID   -> ("Write Deleted",8,commandUnimplemented),
@@ -447,6 +447,17 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
       commandCompleted(resultPhase = true)
   end commandSenseInterrupt
 
+  private def commandReadID(cmd:Command): Unit =
+    val bytes = cmd.getCMDBytes
+    val drive = drives(selectedDrive)
+    log.info("%s executing %s with %s", componentName, cmd.label, bytes.mkString("[", ",", "]"))
+    val st0 = makeST0(HD = drive.getHead, US = selectedDrive)
+    val st1 = makeST1()
+    val st2 = makeST2()
+    cmd.setResultBytes(st0, st1, st2, drive.getCurrentTrack, drive.getHead, drive.getSector, 2)
+    commandCompleted(resultPhase = false,irq = true)
+  end commandReadID
+
   private def commandCalibrate(cmd:Command): Unit =
     cmd.state match
       case 0 => // start calibration
@@ -542,17 +553,24 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
           if eot != drive.geometry.sectorsPerTrack then
             log.warning("%s command %s eot is not %d: %d",componentName,cmd.label,drive.geometry.sectorsPerTrack,eot)
 
-          if cmd.id == CMD_READ_DATA_ID then
-            log.info("%s reading data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
-            //printf("%s reading data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d\n",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
-          else
-            log.info("%s writing data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
-            //printf("%s writing data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d\n",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
+          if track < drive.geometry.tracks && sector <= drive.geometry.sectorsPerTrack then
+            if cmd.id == CMD_READ_DATA_ID then
+              log.info("%s reading data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
+              //printf("%s reading data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d\n",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
+            else
+              log.info("%s writing data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
+              //printf("%s writing data on drive %d track=%d head=%d sector=%d size=%d eot=%d gpl=%d dtl=%d\n",componentName,selectedDrive,track,head,sector,sectorSize,eot,gpl,dtl)
 
-          drive.setHead(head)
-          drive.moveOnTrack(track = track)
-          cmd.waitCycles(stepRateTime)
-          cmd.state = 1
+            drive.setHead(head)
+            drive.moveOnTrack(track = track)
+            cmd.waitCycles(stepRateTime)
+            cmd.state = 1
+          else
+            val st0 = makeST0(IC = 0b01,HD = drive.getHead,US = selectedDrive)
+            val st1 = makeST1(MA = 1)
+            val st2 = makeST2(MD = 1)
+            cmd.setResultBytes(st0,st1,st2,drive.getCurrentTrack,drive.getHead,drive.getSector,2)
+            commandCompleted(resultPhase = true, irq = true)
       case 1 => // seek track
         if cmd.decWaitCycles() then
           if drive.stepTrack() then
@@ -581,8 +599,8 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
             else
               cmd.dataReadEnqueue(bytes)
             // ok, go to next sector
-            cmdBytes(3) += 1
-            if cmdBytes(3) > drive.geometry.sectorsPerTrack then // go over last sector?
+            if cmdBytes(3) < drive.geometry.sectorsPerTrack then cmdBytes(3) += 1
+            else
               if drive.getHead == 0 then
                 drive.setHead(1)
                 cmdBytes(3) = 1
@@ -610,18 +628,17 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
               drive.writeSector(data)
               cmd.setWriteNotReady()
             })
-            cmdBytes(3) += 1
-            if cmdBytes(3) > drive.geometry.sectorsPerTrack then // go over last sector?
-              if drive.getHead == 0 then
-                drive.setHead(1)
-                cmdBytes(3) = 1
-              else
-                cmdBytes(3) = 1
-                cmdBytes(1) += 1
-                drive.setHead(0)
-                drive.moveOnTrack(track = cmdBytes(1))
-                cmd.waitCycles(stepRateTime)
-                cmd.state = 1
+            if cmdBytes(3) < drive.geometry.sectorsPerTrack then cmdBytes(3) += 1
+            else if drive.getHead == 0 then
+              drive.setHead(1)
+              cmdBytes(3) = 1
+            else
+              cmdBytes(3) = 1
+              cmdBytes(1) += 1
+              drive.setHead(0)
+              drive.moveOnTrack(track = cmdBytes(1))
+              cmd.waitCycles(stepRateTime)
+              cmd.state = 1
       case 4 => // command completed on TC
         val cmdBytes = cmd.getCMDBytes
         if cmd.id == CMD_READ_DATA_ID then
