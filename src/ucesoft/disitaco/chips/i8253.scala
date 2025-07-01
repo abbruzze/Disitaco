@@ -67,7 +67,8 @@ class i8253 extends PCComponent:
       counterIsLatched = false
       out = false
       //outListener.outChanged(false)
-      mode = new Mode0
+      mode = new Mode2
+      mode.init()
     end reset
 
     final def clock(): Unit = mode.clock()
@@ -138,6 +139,7 @@ class i8253 extends PCComponent:
           log.error("Counter[%d] controlWord=%02X invalid mode=%d",counterID,controlWord,modeValue)
         else
           mode = MODES(modeValue)
+          latch = 0
           mode.init()
 
         log.info("Counter[%d] controlWord=%02X rwMode=%s mode=%s",counterID,controlWord,rwMode,mode.id)
@@ -331,19 +333,32 @@ class i8253 extends PCComponent:
     private class Mode3 extends Mode(3):
       private var evenCount = false
       private var oddReload = false
+      private var counting = false
 
       override def init(): Unit =
         setOut(high)
-        evenCount = false
+        evenCount = (counter & 1) == 0
         oddReload = false
 
       override final def gateRisingEdge(): Unit =
-        loadCounterFromLatch()
-        evenCount = (counter & 1) == 0
-        oddReload = false
+        reload()
       override final def gateFallingEdge(): Unit =
-        /*if out == low then*/ setOut(high)
+        setOut(high)
+      /*
+      Writing a new count while counting does not affect
+      the current counting sequence. If a trigger is received
+      after writing a new count but before the end
+      of the current half-cycle of the square wave, the
+      Counter will be loaded with the new count on the
+      next CLK pulse and counting will continue from the
+      new count. Otherwise, the new count will be loaded
+      at the end of the current half-cycle.
+      */
       override def newCounterWritten(): Unit =
+        if !counting then reload()
+
+      private def reload(): Unit =
+        counting = true
         loadCounterFromLatch()
         evenCount = (counter & 1) == 0
         oddReload = false
@@ -366,11 +381,11 @@ class i8253 extends PCComponent:
             decrementCounter()
             if decrementCounter() == 0 then
               setOut(!out)
-              loadCounterFromLatch()
+              reload()
           else if oddReload then
             oddReload = false
             setOut(!out)
-            loadCounterFromLatch()
+            reload()
           else
             decrementCounter()
             if decrementCounter() == 1 then

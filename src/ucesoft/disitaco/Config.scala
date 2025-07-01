@@ -157,6 +157,7 @@ object Config:
   
   def getCPUCorrectionFactor: Float = config.getProperty("cpu.correctionFactor","1.0").toFloat
   
+  def isAudioEnabled: Boolean = config.getProperty("audio.enabled","true").toBoolean
   def getSpeakerSamplingFreq: Int = config.getProperty("speaker.samplingFreq","44100").toInt
   def getSpeakerBufferMillis: Int = config.getProperty("speaker.audioBufferMillis","5").toInt
   

@@ -316,6 +316,8 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     if Config.isDebuggerOpenAtStartup then
       SwingUtilities.invokeAndWait(() => debugger.enableTracing(true))
 
+    mother.speaker.mute(!Config.isAudioEnabled)
+
     mother.clock.setErrorHandler(errorHandler)
     mother.resetComponent()
     mother.clock.start()
@@ -399,6 +401,10 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     warpItem.addActionListener(_ => MessageBus.send(MessageBus.WarpMode(this,warpItem.isSelected)))
     mouseCapItem.setToolTipText("Press CTRL+wheel to uncapture")
     toolsMenu.add(mouseCapItem)
+    val audioOnItem = new JCheckBoxMenuItem("Audio enabled")
+    audioOnItem.setSelected(Config.isAudioEnabled)
+    toolsMenu.add(audioOnItem)
+    audioOnItem.addActionListener(_ => mother.speaker.mute(!audioOnItem.isSelected))
     mouseCapItem.addActionListener(_ => mouse.setCapture(mouseCapItem.isSelected))
     toolsMenu.add(fastINT13MenuItem)
     fastINT13MenuItem.addActionListener(_ => setFastINT13(fastINT13MenuItem.isSelected))
