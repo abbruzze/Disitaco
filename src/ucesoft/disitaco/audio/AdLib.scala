@@ -67,9 +67,10 @@ class AdLib(clock:Clock,irq0:Boolean => Unit) extends Audio(49700,"AdLib") with 
     val samples = opl3.read()
     var sum = 0
     var s = 0
-    while s < 4 do
-      sum += samples(s)
-      s += 1
+    if canAddSample then
+      while s < 4 do
+        sum += samples(s)
+        s += 1
     if sum > 32767 then sum = 32767
     else if sum < -32768 then sum = -32768
     addSampleToBuffer(sum)
@@ -101,6 +102,8 @@ class AdLib(clock:Clock,irq0:Boolean => Unit) extends Audio(49700,"AdLib") with 
     port match
       case 0x388 =>
         getStatusRegister
+      case 0x389 =>
+        0x1F
       case _ =>
         0xFF
   override def out8(port: Int, byte: Int): Unit =

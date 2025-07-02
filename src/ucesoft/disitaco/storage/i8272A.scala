@@ -825,8 +825,8 @@ class i8272A(floppyAGeometry:DiskGeometry,floppyBGeometry:DiskGeometry,dma:i8237
           0
       case _ =>
         log.warning("%s reading command data register in phase %s",componentName,state)
-        //printf("%s reading command data register in phase %s\n",componentName,state)
-        sys.exit(1)
+        printf("%s reading command data register in phase %s\n",componentName,state)
+        //sys.exit(1)
         0
 
   // =================== Clock 8Mhz ===========================
