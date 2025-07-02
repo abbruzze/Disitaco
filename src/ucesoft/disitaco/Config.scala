@@ -159,7 +159,8 @@ object Config:
   
   def isAudioEnabled: Boolean = config.getProperty("audio.enabled","true").toBoolean
   def getSpeakerSamplingFreq: Int = config.getProperty("speaker.samplingFreq","44100").toInt
-  def getSpeakerBufferMillis: Int = config.getProperty("speaker.audioBufferMillis","5").toInt
+  def getSpeakerVolume: Int = config.getProperty("speaker.volume","100").toInt
+  def getAudioBufferMillis: Int = config.getProperty("audio.audioBufferMillis","5").toInt
   
   def isDebuggerOpenAtStartup: Boolean = config.getProperty("debugger.openAtStartup","false").toBoolean
 
@@ -183,12 +184,5 @@ object Config:
   def getAbsolutePath(f:String): String =
     if f.startsWith("/") || f.charAt(1) == ':' then f else java.nio.file.Paths.get(homeDir,f).toString
       
-//  def getHomeResourceAsString(homeRelativePath:String): Option[String] = getHomeResource(homeRelativePath).map(new String(_,"UTF-8"))
-//
-//  def getResource(path:String): Option[Array[Byte]] =
-//    val in = getClass.getResourceAsStream(path)
-//    if in != null then
-//      Some(in.readAllBytes())
-//    else
-//      None
-//  def getResourceAsString(path:String): Option[String] = getResource(path).map(new String(_,"UTF-8"))
+  def isAdLibEnabled: Boolean = config.getProperty("adlib.enabled","false").toBoolean
+  def getSAdLibVolume: Int = config.getProperty("adlib.volume","100").toInt

@@ -7,7 +7,7 @@ import ucesoft.disitaco.cpu.i8088
 import ucesoft.disitaco.io.*
 import ucesoft.disitaco.keyboard.Keyboard
 import ucesoft.disitaco.printer.FilePrinter
-import ucesoft.disitaco.speaker.Speaker
+import ucesoft.disitaco.audio.{AdLib, Speaker}
 import ucesoft.disitaco.video.VideoCard
 
 import java.io.File
@@ -52,6 +52,7 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   final val com1 = new Serial(comIndex = 1,0x3F8,clockFrequency,pic.pic.setIRQ(4,_))
   final val com2 = new Serial(comIndex = 2,0x2F8,clockFrequency,pic.pic.setIRQ(3,_))
   final val lpt1 = new FilePrinter(lptIndex = 1,0x278,new File(Config.printerDir,"lpt1.txt").toString)
+  final val adLib = if Config.isAdLibEnabled then new AdLib(clock,pic.pic.setIRQ(0,_)) else null
 
   private final val nmiMaskDevice = new IODevice:
     override protected val componentName = "NMI Mask"
@@ -144,6 +145,8 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
   add(com1)
   add(com2)
   add(lpt1)
+  if adLib != null then add(adLib)
+  
   ioDevices.foreach(add)
 
   override protected def init(): Unit =
@@ -153,9 +156,16 @@ class Motherboard extends PCComponent with CPUDevice with VideoCard.VideoCardLis
       for (image,drive) <- Config.getHDImages.zip(List("C","D")) do
         log.info("Drive %s attached image: %s",drive,image)
     wiring()
-    speaker.setBufferInMillis(Config.getSpeakerBufferMillis)
+    speaker.setBufferInMillis(Config.getAudioBufferMillis)
     speaker.start()
     speaker.turn(on = true)
+
+    if adLib != null then
+      log.info("Registering I/O device %s",adLib.getName)
+      adLib.register(ioHandler)
+      adLib.setBufferInMillis(Config.getAudioBufferMillis)
+      adLib.start()
+      adLib.turn(on = true)
 
     if Config.isCGACompositeMonitor then
       videoCard.enableCompositeMonitor(true)

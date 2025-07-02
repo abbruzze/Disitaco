@@ -8,6 +8,7 @@ object Clock:
     def cancel(): Unit
     def isCanceled: Boolean
 
+  @FunctionalInterface
   trait Clockable:
     def clock(cycles:Long): Unit
 
@@ -51,6 +52,8 @@ class Clock (val name: String,private var clocksPerSecond: Int,val autoClockIncr
   private var clockable : Clockable = uninitialized
 
   setFrequency(clocksPerSecond)
+  
+  def getFrequency: Int = clocksPerSecond
 
   override protected def reset(): Unit =
     clockCycles = 0
