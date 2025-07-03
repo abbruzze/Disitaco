@@ -4,7 +4,7 @@
 [![Downloads](https://img.shields.io/github/downloads/abbruzze/Disitaco/total)](https://github.com/abbruzze/Disitaco/releases/latest)
 
 <p align="center">
-  <img src="images/disitacoREADMELogoT.png" alt="Disitaco logo" sizes="">
+  <img src="images/disitacoREADMELogoT.png" alt="Disitaco logo" width="384" height="384">
 </p>
 
 # Disitaco ver 1.0
