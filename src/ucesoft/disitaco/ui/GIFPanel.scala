@@ -23,6 +23,7 @@ class GIFPanel(display:Array[Display],displayName:Array[String]) extends JPanel 
   private def init() : Unit = {
     setLayout(new GridBagLayout)
     val displaySelector = new JComboBox(displayName)
+    displaySelector.setFocusable(false)
     displaySelector.addActionListener(_ => selectedDisplayIndex = displaySelector.getSelectedIndex )
     add(0,0,new JLabel("Display:"),GridBagConstraints.LINE_END)
     add(1,0,displaySelector,GridBagConstraints.LINE_START)
@@ -42,6 +43,7 @@ class GIFPanel(display:Array[Display],displayName:Array[String]) extends JPanel 
     add(1,3,new JLabel("Frame recorded:"),GridBagConstraints.LINE_END)
     add(2,3,frameRecordedLabel,GridBagConstraints.LINE_START)
     startStopButton.addActionListener(_ => startStop())
+    startStopButton.setFocusable(false)
     add(1,4,startStopButton)
   }
 
@@ -154,12 +156,14 @@ class GIFPanel(display:Array[Display],displayName:Array[String]) extends JPanel 
 }
 
 object GIFPanel {
-  def createGIFPanel(parent:JFrame,display:Array[Display],displayName:Array[String]) : JDialog = {
+  def createGIFPanel(parent:JFrame,display:Array[Display],displayName:Array[String],closeAction: () => Unit) : JDialog = {
     val f = new JDialog(parent,s"GIF recording",false)
     val gifPanel = new GIFPanel(display,displayName)
 
     f.addWindowListener(new WindowAdapter {
-      override def windowClosing(e:WindowEvent) : Unit = gifPanel.stopRecording()
+      override def windowClosing(e:WindowEvent) : Unit =
+        gifPanel.stopRecording()
+        closeAction()
     })
 
     gifPanel.init()

@@ -8,7 +8,7 @@ import ucesoft.disitaco.serial.HostFileTransferSerialDevice
 import ucesoft.disitaco.storage.{Fast13IntHandler, FixedDiskImage, FloppyDiskImage, LocalDirectoryFloppyDiskImage}
 import ucesoft.disitaco.*
 
-import java.awt.event.{WindowAdapter, WindowEvent}
+import java.awt.event.{MouseAdapter, MouseEvent, WindowAdapter, WindowEvent}
 import java.awt.{BorderLayout, Dimension, FlowLayout}
 import java.io.File
 import javax.swing.*
@@ -209,6 +209,9 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     videoCardInfoPanel.setVisible(false)
     displayLabel.setIcon(new ImageIcon(getClass.getResource("/resources/trace/monitor.png")))
     display.setPreferredSize(new Dimension(dim.width, dim.height))
+    display.addMouseListener(new MouseAdapter:
+      override def mouseClicked(e: MouseEvent): Unit = display.requestFocus()
+    )
     mother.display = display
     frame.getContentPane.add("Center", displayPanel)
 
@@ -439,7 +442,7 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     })
     val gifItem = new JMenuItem("Gif recorder ...")
     toolsMenu.add(gifItem)
-    gifItem.addActionListener(_ => GIFPanel.createGIFPanel(frame,Array(display),Array("Main")).setVisible(true))
+    gifItem.addActionListener(_ => GIFPanel.createGIFPanel(frame,Array(display),Array("Main"),() => display.requestFocus()).setVisible(true))
   private def buildHelpMenu(helpMenu:JMenu): Unit =
     val aboutItem = new JMenuItem("About")
     helpMenu.add(aboutItem)
