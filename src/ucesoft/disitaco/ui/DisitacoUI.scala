@@ -54,6 +54,7 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
   private val warpItem = new JCheckBoxMenuItem("Warp mode")
   private val mouseCapItem = new JCheckBoxMenuItem("Mouse capture")
   private val turboButton = new JToggleButton(new ImageIcon(getClass.getResource("/resources/turbo.png")))
+  private val pauseItem = new JCheckBoxMenuItem("Pause")
 
   private val mother = new Motherboard
   private val frame = new JFrame()
@@ -153,11 +154,13 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
   private def pause(on: Boolean): Unit =
     if on then
       mother.clock.pause()
+      display.setPaused()
     else
       mother.clock.play()
   end pause
 
   private def reset(hard: Boolean): Unit =
+    pauseItem.setSelected(false)
     pause(on = true)
     if hard then
       mother.hardResetComponent()
@@ -386,6 +389,9 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     resetItem.addActionListener(_ => reset(hard = false))
     powerOffOnItem.addActionListener(_ => reset(hard = true))
 
+    fileMenu.add(pauseItem)
+    pauseItem.addActionListener(_ => pause(pauseItem.isSelected))
+
     val shutdownItem = new JMenuItem("Shutdown")
     fileMenu.add(shutdownItem)
     shutdownItem.addActionListener(_ => shutdown())
@@ -431,6 +437,9 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
       frameSizeFactor = if frameDoubleSizeItem.isSelected then 2.0 else 1.0
       adjustScreen(lastVideoModeChanged)
     })
+    val gifItem = new JMenuItem("Gif recorder ...")
+    toolsMenu.add(gifItem)
+    gifItem.addActionListener(_ => GIFPanel.createGIFPanel(frame,Array(display),Array("Main")).setVisible(true))
   private def buildHelpMenu(helpMenu:JMenu): Unit =
     val aboutItem = new JMenuItem("About")
     helpMenu.add(aboutItem)
