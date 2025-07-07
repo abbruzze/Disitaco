@@ -16,9 +16,71 @@ Scala PC XT emulator
 
 ## Emulator main features
 -----------
+- 8088 CPU (instruction-exact), testet against [ProcessorTests](https://github.com/SingleStepTests/ProcessorTests/tree/main/8088)
+- Intel 8237 DMA controller
+- Intel 8253 PIT
+- Intel 8259 PIC
+- Intel 8255 PPI
+- INS 8250 UART
+- MC146818 RTC
+- Lotech EMS
+- Speaker
+- AdLib audio card
+- CGA, MDA, HDA video cards
+- Floppy controller with 1.44M, 720K, 360K, 320K, 180K and 160K floppy images
+- Hard disk controller with 10M and 24M hard disk images
+- Option ROMs support
+- Mouse support (serial)
+- 8088 Debugger
+- Keyboard
 
-## Default configuration
-The emulator's configuration is stored in `config/disitaco.config` file:
+# Bios
+-----------
+Disitaco requires a BIOS to run. The default BIOS is the [GLa BIOS](https://glabios.org/) already included in the `rom` directory. 
+You can also use the original IBM 5160 BIOS, split in U18 and U19 rom files. The configuration file allows you to choose which BIOS to use.
+
+# Storage
+-----------
+Disitaco supports floppy and hard disk images. Images can be created with the `makedisk` command line utility.
+Disitaco supports the Xebec hard disk controller and can be configured with the `option.rom` properties in the configuration file.
+The hard disks images size can be 10M or 24M.
+The emulator is already shipped with a 10M hard disk image, `H_C.img`, formatted with DOS 6.22, that can be used with the Xebec controller.
+A Virtual 1.44 floppy disk can be created with the content of a local directory: in this case the floppy disk size must be set to 1.44M in the configuration file.
+
+# Video
+-----------
+Disitaco supports CGA, MDA and HDA video cards. The CGA card can be configured to use the alternative character set and to display on a composite monitor.
+The emulator's frame size will be adjusted to the video card's resolution automatically.
+
+# Mouse
+-----------
+Disitaco supports a serial mouse. The mouse can be configured to use 3 buttons and the scale factor for the X and Y axis.
+Must be enabled in the configuration file and activated using the 'Mouse capture' menu item under Tools.
+To deactivate the mouse, click the mouse wheel button with CTRL pressed.
+
+# Audio
+-----------
+Disitaco supports the speaker and the AdLib audio card. The speaker can be configured with a sampling frequency.
+
+# Keyboard
+-----------
+Disitaco supports the PC XT keyboard. The keyboard, at the moment, supports the Italian layout only.
+
+# Serial
+-----------
+Other than the serial mouse, Disitaco supports two out of the box serial port devices. 
+The first one is used to exchange files with the host, using the tool `hostftp.exe` shipped with , the second one can be used to connect a terminal or a serial mouse.
+
+## Usage
+Go to https://github.com/abbruzze/Disitaco/releases/latest and download and unzip on your computer the latest version.
+Be sure to have a jre (17 or above, best performance on latest versions) in the path and launch in the bin directory:
+- On Windows: **disitaco.bat**
+- On Linux: **disitaco.sh**
+
+
+## Configuration
+The emulator's configuration is stored in `config/disitaco.config` file.
+Follows the default configuration file content. You can copy it to `config/disitaco.config` and modify it to suit your needs.
 
 ```properties
 # Default Disitaco properties
