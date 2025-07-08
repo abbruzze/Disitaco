@@ -34,42 +34,35 @@ Scala PC XT emulator
 - 8088 Debugger
 - Keyboard
 
-# Bios
------------
+### Bios
 Disitaco requires a BIOS to run. The default BIOS is the [GLa BIOS](https://glabios.org/) already included in the `rom` directory. 
 You can also use the original IBM 5160 BIOS, split in U18 and U19 rom files. The configuration file allows you to choose which BIOS to use.
 
-# Storage
------------
+### Storage
 Disitaco supports floppy and hard disk images. Images can be created with the `makedisk` command line utility.
 Disitaco supports the Xebec hard disk controller and can be configured with the `option.rom` properties in the configuration file.
 The hard disks images size can be 10M or 24M.
 The emulator is already shipped with a 10M hard disk image, `H_C.img`, formatted with DOS 6.22, that can be used with the Xebec controller.
 A Virtual 1.44 floppy disk can be created with the content of a local directory: in this case the floppy disk size must be set to 1.44M in the configuration file.
 
-# Video
------------
+### Video
 Disitaco supports CGA, MDA and HDA video cards. The CGA card can be configured to use the alternative character set and to display on a composite monitor.
 The emulator's frame size will be adjusted to the video card's resolution automatically.
 
-# Mouse
------------
+### Mouse
 Disitaco supports a serial mouse. The mouse can be configured to use 3 buttons and the scale factor for the X and Y axis.
 Must be enabled in the configuration file and activated using the 'Mouse capture' menu item under Tools.
 To deactivate the mouse, click the mouse wheel button with CTRL pressed.
 
-# Audio
------------
+### Audio
 Disitaco supports the speaker and the AdLib audio card. The speaker can be configured with a sampling frequency.
 
-# Keyboard
------------
+### Keyboard
 Disitaco supports the PC XT keyboard. The keyboard, at the moment, supports the Italian layout only.
 
-# Serial
------------
+### Serial
 Other than the serial mouse, Disitaco supports two out of the box serial port devices. 
-The first one is used to exchange files with the host, using the tool `hostftp.exe` shipped with , the second one can be used to connect a terminal or a serial mouse.
+The first one is used to exchange files with the host, using the tool `hostftp.exe` shipped with the hard drive image, the second one can be used to connect a terminal to an external TCP/IP source.
 
 ## Usage
 Go to https://github.com/abbruzze/Disitaco/releases/latest and download and unzip on your computer the latest version.
