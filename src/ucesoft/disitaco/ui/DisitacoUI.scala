@@ -1,10 +1,11 @@
 package ucesoft.disitaco.ui
 
 import com.formdev.flatlaf.FlatLightLaf
+import jdk.jfr.Enabled
 import ucesoft.disitaco.debugger.Debugger
 import ucesoft.disitaco.io.{LotechEMS, Turbo}
 import ucesoft.disitaco.mouse.SerialMouse
-import ucesoft.disitaco.serial.HostFileTransferSerialDevice
+import ucesoft.disitaco.serial.{HostFileTransferSerialDevice, TCPSerialDevice}
 import ucesoft.disitaco.storage.{Fast13IntHandler, FixedDiskImage, FloppyDiskImage, LocalDirectoryFloppyDiskImage}
 import ucesoft.disitaco.*
 
@@ -55,6 +56,7 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
   private val mouseCapItem = new JCheckBoxMenuItem("Mouse capture")
   private val turboButton = new JToggleButton(new ImageIcon(getClass.getResource("/resources/turbo.png")))
   private val pauseItem = new JCheckBoxMenuItem("Pause")
+  private val tcpSerialItem = new JCheckBoxMenuItem("TCP Serial on COM2 ...")
 
   private val mother = new Motherboard
   private val frame = new JFrame()
@@ -337,6 +339,47 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
       mother.cpu.setInterruptHandler(0x13, null)
   end setFastINT13
 
+  private def enableTCPSerial(enabled: Boolean): Unit =
+    tcpSerialItem.setSelected(enabled)
+    if !enabled then
+      mother.com2.enabled = false
+      mother.com2.ins8250.setDevice(null)
+      JOptionPane.showMessageDialog(frame, "TCP Serial on COM2 disabled", "COM2", JOptionPane.INFORMATION_MESSAGE)
+    else
+      val url = JOptionPane.showInputDialog(frame,"Enter TCP server endpoint (e.g. localhost:1234):","TCP Serial on COM2",JOptionPane.QUESTION_MESSAGE)
+      if url != null then
+        val dialog = new JDialog(frame,"Connecting",true)
+        dialog.setDefaultCloseOperation(WindowConstants.DO_NOTHING_ON_CLOSE)
+        val panel = new JPanel(new FlowLayout(FlowLayout.LEFT))
+        panel.add(new JLabel(s"Connecting to $url ..."))
+        dialog.getContentPane.add("Center",panel)
+        dialog.setLocationRelativeTo(frame)
+        dialog.pack()
+
+        val task : Runnable = () => {
+          try
+            val tcpSer = new TCPSerialDevice
+            val tcpPars = url.split(":")
+            val host = tcpPars(0)
+            val port = if tcpPars.length == 1 then 80 else tcpPars(1).trim.toInt
+            tcpSer.setMaster(mother.com2.ins8250)
+            tcpSer.connect(host, port)
+            mother.com2.enabled = true
+            mother.com2.ins8250.setDevice(tcpSer)
+          catch
+            case t: Throwable =>
+              JOptionPane.showMessageDialog(frame, s"Error while connecting to $url: $t", "Connection error", JOptionPane.ERROR_MESSAGE)
+          finally
+            dialog.dispose()
+        }
+        val t = new Thread(task,"TCP Serial")
+        t.start()
+        dialog.setVisible(true)
+      else
+        tcpSerialItem.setSelected(false)
+
+  end enableTCPSerial
+
   private def buildMenuBar(): Unit =
     val menubar = new JMenuBar
     frame.setJMenuBar(menubar)
@@ -443,6 +486,9 @@ class DisitacoUI extends MessageBus.MessageListener with StoragePanel.StorageLis
     val gifItem = new JMenuItem("Gif recorder ...")
     toolsMenu.add(gifItem)
     gifItem.addActionListener(_ => GIFPanel.createGIFPanel(frame,Array(display),Array("Main"),() => display.requestFocus()).setVisible(true))
+
+    toolsMenu.add(tcpSerialItem)
+    tcpSerialItem.addActionListener(_ => enableTCPSerial(tcpSerialItem.isSelected))
   private def buildHelpMenu(helpMenu:JMenu): Unit =
     val aboutItem = new JMenuItem("About")
     helpMenu.add(aboutItem)

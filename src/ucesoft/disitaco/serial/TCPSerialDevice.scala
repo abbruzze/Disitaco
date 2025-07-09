@@ -1,23 +1,25 @@
 package ucesoft.disitaco.serial
 
+import org.apache.commons.net.telnet.TelnetClient
 import ucesoft.disitaco.chips.INS8250
 import ucesoft.disitaco.chips.INS8250.SerialMaster
 
 import java.io.{BufferedInputStream, InputStream, OutputStream}
+import java.net.Socket
+import javax.swing.SwingUtilities
 import scala.compiletime.uninitialized
 
 /**
  * @author Alessandro Abbruzzetti
  *         Created on 06/06/2025 14:27  
  */
-class TCPSerialDevice extends INS8250.SerialDevice:
+class TCPSerialDevice(telnet:Boolean = true) extends INS8250.SerialDevice:
   override val name: String = "TCP Serial Device"
   private var connectionString = ""
   private var master: SerialMaster = uninitialized
   private var out : OutputStream = uninitialized
   private var in : InputStream = uninitialized
-
-  master.setState("Disconnected")
+  private val client = new TelnetClient()
 
   def disconnect(): Unit =
     try
@@ -33,14 +35,22 @@ class TCPSerialDevice extends INS8250.SerialDevice:
   def connect(host:String,port:Int): Option[String] =
     connectionString = s"$host:$port"
     if in != null then
-      in.close()
-      out.close()
+      if client == null then
+        in.close()
+        out.close()
+      else
+        client.disconnect()
     try
-      val socket = new java.net.Socket(host, port)
-      out = socket.getOutputStream
-      in = new BufferedInputStream(socket.getInputStream)
-      println(s"Connected to $connectionString")
-      master.setState(s"Connected to $connectionString")
+      if telnet then
+        client.connect(host,port)
+        out = client.getOutputStream
+        in = new BufferedInputStream(client.getInputStream)
+      else
+        val socket = new Socket(host,port)
+        out = socket.getOutputStream
+        in = socket.getInputStream
+      //println(s"Connected to $connectionString")
+      SwingUtilities.invokeLater(() => master.setState(s"Connected to $connectionString"))
       None
     catch
       case e: Exception =>
@@ -69,4 +79,5 @@ class TCPSerialDevice extends INS8250.SerialDevice:
 
   override def setMaster(master:SerialMaster): Unit =
     this.master = master
+    master.setState("Disconnected")
 

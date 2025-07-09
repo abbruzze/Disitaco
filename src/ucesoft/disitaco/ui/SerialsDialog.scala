@@ -24,4 +24,5 @@ class SerialsDialog(frame:JFrame,closeOperation:() => Unit):
     dialog.getContentPane.add(com1)
     dialog.getContentPane.add(com2)
     dialog.pack()
+    dialog.setResizable(false)
 

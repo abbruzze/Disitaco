@@ -30,6 +30,7 @@ Compile / sourceGenerators += Def.task {
 
 libraryDependencies += "com.fifesoft" % "rsyntaxtextarea" % "3.6.0"
 libraryDependencies += "com.formdev" % "flatlaf" % "3.6"
+libraryDependencies += "commons-net" % "commons-net" % "3.11.1"
 //libraryDependencies += "org.yaml" % "snakeyaml" % "2.3"
 //libraryDependencies += "org.jfree" % "jfreechart" % "1.5.6"
 //libraryDependencies += "com.fasterxml.jackson.core" % "jackson-databind" % "2.19.0"

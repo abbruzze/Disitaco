@@ -279,7 +279,8 @@ class INS8250(comIndex:Int,masterClockFreq:Int,irq: Boolean => Unit) extends PCC
 
   def setDevice(device: SerialDevice): Unit =
     this.device = device
-    device.setMaster(this)
+    if device != null then
+      device.setMaster(this)
 
   def setSignalListener(sl:SignalListener): Unit =
     signalListener = sl
@@ -445,10 +446,11 @@ class INS8250(comIndex:Int,masterClockFreq:Int,irq: Boolean => Unit) extends PCC
   end setRXByte
 
   final def clock(): Unit =
-    tickCycles += 1
-    if tickCycles > internalTickCycles then
-      tickCycles -= internalTickCycles
-      tick()
+    if device != null then
+      tickCycles += 1
+      if tickCycles > internalTickCycles then
+        tickCycles -= internalTickCycles
+        tick()
   end clock
 
   private def tick(): Unit =
